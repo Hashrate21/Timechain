@@ -1,0 +1,42 @@
+name: macOS release
+
+on:
+  workflow_dispatch:  # Run manually from Actions tab
+  # Uncomment to build on version tags:
+  # push:
+  #   tags:
+  #     - 'v*'
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Dependencies
+        run: |
+          flutter config --enable-macos-desktop
+          flutter pub get
+
+      - name: Build macOS release
+        run: flutter build macos --release
+
+      - name: Zip .app
+        run: |
+          APP_PATH=$(find build/macos/Build/Products/Release -name "*.app" -maxdepth 1 | head -1)
+          echo "Found: $APP_PATH"
+          APP_NAME=$(basename "$APP_PATH")
+          cd "$(dirname "$APP_PATH")"
+          zip -r "$GITHUB_WORKSPACE/Timechain-macos.zip" "$APP_NAME"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Timechain-macos
+          path: Timechain-macos.zip

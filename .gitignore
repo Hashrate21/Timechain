@@ -1,0 +1,86 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Widget Preview related
+.widget_preview/
+
+# Local / secrets
+.env
+.env.*
+*.pem
+*.key
+
+# App data you never want in git
+*.db
+*.sqlite
+*.sqlite3
+
+# Windows
+*.exe
+*.dll
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.obj
+
+# Packaging
+*.zip
+*.7z
+*.rar
+
+# Flutter / tooling extras
+.packages
+.pub-cache/
+.pub/
+**/Generated.xcconfig
+**/flutter_export_environment.sh
+
+# Optional: generated plugin registrant noise (if it appears)
+# **/generated_plugin_registrant.*
+
+# FVM (if you use it)
+.fvm/flutter_sdk

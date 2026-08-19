@@ -1,6 +1,9 @@
 import 'dart:io';
+
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+
 import 'budget_paths.dart';
+import '../../domain/entities/account.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -28,7 +31,7 @@ class DatabaseHelper {
 
     return openDatabase(
       _currentPath!,
-      version: 11,
+      version: 12,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -39,6 +42,27 @@ class DatabaseHelper {
       await _database!.close();
       _database = null;
     }
+  }
+
+  Future<void> _ensureUntrackedAccount(Database db) async {
+    final existing = await db.query(
+      'accounts',
+      where: 'id = ?',
+      whereArgs: [Account.untrackedId],
+    );
+    if (existing.isNotEmpty) return;
+
+    await db.insert('accounts', {
+      'id': Account.untrackedId,
+      'name': Account.defaultUntrackedName,
+      'type': 'untracked',
+      'starting_balance': 0,
+      'currency': '\$',
+      'is_active': 1,
+      'sort_order': 9999,
+      'created_at': DateTime.now().toIso8601String(),
+      'icon_key': 'public_off',
+    });
   }
 
   Future<void> switchToPath(String path) async {
@@ -133,17 +157,20 @@ class DatabaseHelper {
         ''');
       } catch (_) {}
     }
-        if (oldVersion < 10) {
+    if (oldVersion < 10) {
       try {
         await db.execute(
           "ALTER TABLE settings ADD COLUMN projection_paid_filter TEXT NOT NULL DEFAULT 'all'",
         );
       } catch (_) {}
     }
-        if (oldVersion < 11) {
+    if (oldVersion < 11) {
       await db.execute(
         "ALTER TABLE settings ADD COLUMN color_scheme TEXT NOT NULL DEFAULT 'defaultBlue'",
       );
+    }
+    if (oldVersion < 12) {
+      await _ensureUntrackedAccount(db);
     }
   }
 
@@ -294,60 +321,65 @@ class DatabaseHelper {
     final now = DateTime.now().toIso8601String();
 
     final defaultCategories = [
-      {'id': 'cat_salary', 'name': 'Salary', 'color': '#22C55E', 'is_income': 1},
+      {
+        'id': 'cat_salary',
+        'name': 'Salary',
+        'color': '#22C55E',
+        'is_income': 1,
+      },
       {
         'id': 'cat_freelance',
         'name': 'Freelance',
         'color': '#10B981',
-        'is_income': 1
+        'is_income': 1,
       },
       {
         'id': 'cat_other_income',
         'name': 'Other Income',
         'color': '#34D399',
-        'is_income': 1
+        'is_income': 1,
       },
       {
         'id': 'cat_housing',
         'name': 'Housing',
         'color': '#3B82F6',
-        'is_income': 0
+        'is_income': 0,
       },
       {
         'id': 'cat_utilities',
         'name': 'Utilities',
         'color': '#8B5CF6',
-        'is_income': 0
+        'is_income': 0,
       },
       {
         'id': 'cat_food',
         'name': 'Food & Dining',
         'color': '#F59E0B',
-        'is_income': 0
+        'is_income': 0,
       },
       {
         'id': 'cat_transport',
         'name': 'Transport',
         'color': '#F97316',
-        'is_income': 0
+        'is_income': 0,
       },
       {
         'id': 'cat_subscriptions',
         'name': 'Subscriptions',
         'color': '#06B6D4',
-        'is_income': 0
+        'is_income': 0,
       },
       {
         'id': 'cat_entertainment',
         'name': 'Entertainment',
         'color': '#EC4899',
-        'is_income': 0
+        'is_income': 0,
       },
       {
         'id': 'cat_other_expense',
         'name': 'Other',
         'color': '#64748B',
-        'is_income': 0
+        'is_income': 0,
       },
       {
         'id': 'cat_transfer',
@@ -370,5 +402,6 @@ class DatabaseHelper {
         'created_at': now,
       });
     }
+    await _ensureUntrackedAccount(db);
   }
 }

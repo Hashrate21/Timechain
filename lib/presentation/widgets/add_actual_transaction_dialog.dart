@@ -182,6 +182,14 @@ class _AddActualTransactionDialogState
                               setState(() {
                                 _type = value;
                                 _selectedCategoryId = null;
+                                if (value != TransactionType.transfer) {
+                                  if (_selectedAccountId ==
+                                      Account.untrackedId) {
+                                    _selectedAccountId = null;
+                                  }
+                                  _fromAccountId = null;
+                                  _toAccountId = null;
+                                }
                               });
                             }
                           },
@@ -214,7 +222,9 @@ class _AddActualTransactionDialogState
                     accountsAsync.when(
                       data: (accounts) => _accountRow(
                         colors: colors,
-                        accounts: accounts,
+                        accounts: accounts
+                            .where((a) => !a.isUntracked)
+                            .toList(),
                         value: _selectedAccountId,
                         onChanged: (v) =>
                             setState(() => _selectedAccountId = v),
@@ -305,6 +315,10 @@ class _AddActualTransactionDialogState
                                 if (v == _toAccountId) {
                                   return 'Must differ from To';
                                 }
+                                if (v == Account.untrackedId &&
+                                    _toAccountId == Account.untrackedId) {
+                                  return 'Need a tracked account';
+                                }
                                 return null;
                               },
                             ),
@@ -363,6 +377,10 @@ class _AddActualTransactionDialogState
                                 if (v == null) return 'Select account';
                                 if (v == _fromAccountId) {
                                   return 'Must differ from From';
+                                }
+                                if (v == Account.untrackedId &&
+                                    _fromAccountId == Account.untrackedId) {
+                                  return 'Need a tracked account';
                                 }
                                 return null;
                               },
@@ -462,8 +480,12 @@ class _AddActualTransactionDialogState
                   decoration: _inputDecoration('Account', colors),
                   items: accounts
                       .map(
-                        (a) =>
-                            DropdownMenuItem(value: a.id, child: Text(a.name)),
+                        (a) => DropdownMenuItem(
+                          value: a.id,
+                          child: Text(
+                            a.isUntracked ? '${a.name} · untracked' : a.name,
+                          ),
+                        ),
                       )
                       .toList(),
                   onChanged: onChanged,
@@ -511,6 +533,22 @@ class _AddActualTransactionDialogState
 
     if (isTransfer) {
       if (_fromAccountId == null || _toAccountId == null) return;
+      if (_fromAccountId == _toAccountId) return;
+
+      final fromUntracked = _fromAccountId == Account.untrackedId;
+      final toUntracked = _toAccountId == Account.untrackedId;
+      if (fromUntracked && toUntracked) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Choose at least one account you track in this budget',
+            ),
+          ),
+        );
+        return;
+      }
+
       final accounts = ref.read(accountsProvider).valueOrNull ?? [];
       final amount = double.parse(_amountController.text);
 

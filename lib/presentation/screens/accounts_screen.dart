@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/account_icons.dart';
 import '../../core/utils/money_format.dart';
@@ -54,7 +55,9 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                   backgroundColor: colors.primary,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 18, vertical: 14),
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -66,7 +69,9 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
         Expanded(
           child: accountsAsync.when(
             data: (accounts) {
-              if (accounts.isEmpty) {
+              final tracked = accounts.where((a) => !a.isUntracked).toList();
+
+              if (tracked.isEmpty) {
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -111,34 +116,34 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                               const Spacer(),
                               _RangeChip(
                                 label: '30d',
-                                selected:
-                                    _chartRange == _BalanceChartRange.d30,
-                                onTap: () => setState(() =>
-                                    _chartRange = _BalanceChartRange.d30),
+                                selected: _chartRange == _BalanceChartRange.d30,
+                                onTap: () => setState(
+                                  () => _chartRange = _BalanceChartRange.d30,
+                                ),
                               ),
                               const SizedBox(width: 6),
                               _RangeChip(
                                 label: '90d',
-                                selected:
-                                    _chartRange == _BalanceChartRange.d90,
-                                onTap: () => setState(() =>
-                                    _chartRange = _BalanceChartRange.d90),
+                                selected: _chartRange == _BalanceChartRange.d90,
+                                onTap: () => setState(
+                                  () => _chartRange = _BalanceChartRange.d90,
+                                ),
                               ),
                               const SizedBox(width: 6),
                               _RangeChip(
                                 label: 'YTD',
-                                selected:
-                                    _chartRange == _BalanceChartRange.ytd,
-                                onTap: () => setState(() =>
-                                    _chartRange = _BalanceChartRange.ytd),
+                                selected: _chartRange == _BalanceChartRange.ytd,
+                                onTap: () => setState(
+                                  () => _chartRange = _BalanceChartRange.ytd,
+                                ),
                               ),
                               const SizedBox(width: 6),
                               _RangeChip(
                                 label: 'All',
-                                selected:
-                                    _chartRange == _BalanceChartRange.all,
-                                onTap: () => setState(() =>
-                                    _chartRange = _BalanceChartRange.all),
+                                selected: _chartRange == _BalanceChartRange.all,
+                                onTap: () => setState(
+                                  () => _chartRange = _BalanceChartRange.all,
+                                ),
                               ),
                             ],
                           ),
@@ -151,10 +156,11 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          for (final account in accounts) ...[
+                          for (final account in tracked) ...[
                             _AccountCard(
                               account: account,
-                              liveBalance: balances[account.id] ??
+                              liveBalance:
+                                  balances[account.id] ??
                                   account.startingBalance,
                               series: _buildSeries(
                                 account: account,
@@ -174,13 +180,11 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                     error: (e, s) => Center(child: Text('Error: $e')),
                   );
                 },
-                loading: () =>
-                    const Center(child: CircularProgressIndicator()),
+                loading: () => const Center(child: CircularProgressIndicator()),
                 error: (e, s) => Center(child: Text('Error: $e')),
               );
             },
-            loading: () =>
-                const Center(child: CircularProgressIndicator()),
+            loading: () => const Center(child: CircularProgressIndicator()),
             error: (err, stack) => Center(child: Text('Error: $err')),
           ),
         ),
@@ -209,13 +213,10 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
     required DateTime rangeStart,
     required DateTime rangeEnd,
   }) {
-    final start =
-        DateTime(rangeStart.year, rangeStart.month, rangeStart.day);
+    final start = DateTime(rangeStart.year, rangeStart.month, rangeStart.day);
     final end = DateTime(rangeEnd.year, rangeEnd.month, rangeEnd.day);
 
-    final txs = transactions
-        .where((t) => t.accountId == account.id)
-        .toList()
+    final txs = transactions.where((t) => t.accountId == account.id).toList()
       ..sort((a, b) => a.date.compareTo(b.date));
 
     double balance = account.startingBalance;
@@ -345,9 +346,7 @@ class _AccountCard extends ConsumerWidget {
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: colors.border,
-        ),
+        border: Border.all(color: colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -406,10 +405,7 @@ class _AccountCard extends ConsumerWidget {
                   const SizedBox(height: 2),
                   Text(
                     'Start ${money(account.startingBalance)}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colors.textSecondary,
-                    ),
+                    style: TextStyle(fontSize: 11, color: colors.textSecondary),
                   ),
                 ],
               ),
@@ -425,8 +421,7 @@ class _AccountCard extends ConsumerWidget {
                   if (value == 'edit') {
                     showDialog(
                       context: context,
-                      builder: (context) =>
-                          AddAccountDialog(existing: account),
+                      builder: (context) => AddAccountDialog(existing: account),
                     );
                   }
 
@@ -445,14 +440,10 @@ class _AccountCard extends ConsumerWidget {
                   }
                 },
                 itemBuilder: (context) => [
-                  const PopupMenuItem(
-                    value: 'edit',
-                    child: Text('Edit'),
-                  ),
+                  const PopupMenuItem(value: 'edit', child: Text('Edit')),
                   const PopupMenuItem(
                     value: 'delete',
-                    child: Text('Delete',
-                        style: TextStyle(color: Colors.red)),
+                    child: Text('Delete', style: TextStyle(color: Colors.red)),
                   ),
                 ],
               ),
@@ -462,10 +453,7 @@ class _AccountCard extends ConsumerWidget {
           SizedBox(
             height: 130,
             width: double.infinity,
-            child: _MiniBalanceChart(
-              series: series,
-              money: money,
-            ),
+            child: _MiniBalanceChart(series: series, money: money),
           ),
         ],
       ),
@@ -477,10 +465,7 @@ class _MiniBalanceChart extends StatelessWidget {
   final _AccountSeries series;
   final String Function(double) money;
 
-  const _MiniBalanceChart({
-    required this.series,
-    required this.money,
-  });
+  const _MiniBalanceChart({required this.series, required this.money});
 
   @override
   Widget build(BuildContext context) {
@@ -492,10 +477,7 @@ class _MiniBalanceChart extends StatelessWidget {
       return Center(
         child: Text(
           'No movement in this range',
-          style: TextStyle(
-            fontSize: 12,
-            color: colors.textSecondary,
-          ),
+          style: TextStyle(fontSize: 12, color: colors.textSecondary),
         ),
       );
     }
@@ -546,9 +528,11 @@ class _MiniBalanceChart extends StatelessWidget {
         ),
         titlesData: FlTitlesData(
           topTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false)),
+            sideTitles: SideTitles(showTitles: false),
+          ),
           rightTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false)),
+            sideTitles: SideTitles(showTitles: false),
+          ),
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -562,10 +546,7 @@ class _MiniBalanceChart extends StatelessWidget {
                     : value.toInt().toString();
                 return Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: colors.textSecondary,
-                  ),
+                  style: TextStyle(fontSize: 9, color: colors.textSecondary),
                 );
               },
             ),
@@ -580,16 +561,12 @@ class _MiniBalanceChart extends StatelessWidget {
                   return const SizedBox.shrink();
                 }
                 final ms = startMs + value * span;
-                final d =
-                    DateTime.fromMillisecondsSinceEpoch(ms.round());
+                final d = DateTime.fromMillisecondsSinceEpoch(ms.round());
                 return Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
                     '${d.month}/${d.day}',
-                    style: TextStyle(
-                      fontSize: 9,
-                      color: colors.textSecondary,
-                    ),
+                    style: TextStyle(fontSize: 9, color: colors.textSecondary),
                   ),
                 );
               },

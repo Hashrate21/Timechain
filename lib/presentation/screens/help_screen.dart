@@ -77,6 +77,18 @@ class HelpScreen extends StatelessWidget {
                       'Allocate expenses to categories, track balances over time, '
                           'then use Analytics and the dashboard to see where money goes.',
                     ]),
+                    _Heading('Transfers'),
+                    _Para([
+                      'A transfer moves money between accounts. It is not income and not an expense.',
+                      'Use Transfer when both sides are accounts you track (e.g. Checking → Savings).',
+                    ]),
+                    _Heading('Untracked'),
+                    _Para([
+                      'Untracked is a special counterparty for money that leaves or enters an account without the account being tracked in this program — brokerage, kids’ accounts, external savings, and similar items.',
+                      'Transfer Checking → Untracked lowers Checking only. Transfer Untracked → Checking raises Checking only. Neither counts as an expense or income.',
+                      'Untracked does not appear on the Accounts screen or in net worth. Rename it anytime in Settings (e.g. to “Kids Savings”); that only changes the label.',
+                      'To track a real balance inside the app, add a normal account instead and transfer between tracked accounts.',
+                    ]),
 
                     _Heading('Accounts'),
                     _Para([
@@ -130,6 +142,12 @@ class HelpScreen extends StatelessWidget {
                     _Term('Skip', [
                       'Ignore an occurrence in the plan without deleting the series.',
                     ]),
+                    _Term('External / Untracked', [
+                      'An account that is outside of this budget file.',
+                    ]),
+                    _Term('Transfer', [
+                      'Actual movement between accounts (or Untracked). Excluded from income and expense totals.',
+                    ]),
                   ],
                 ),
 
@@ -169,7 +187,7 @@ class HelpScreen extends StatelessWidget {
 
                     const SizedBox(height: 12),
                     Text(
-                      'Version 0.2.0',
+                      'Version 0.2.1',
                       style: TextStyle(
                         fontSize: 13,
                         color: colors.textSecondary,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../domain/entities/account.dart';
 import '../theme/app_colors.dart';
 
@@ -60,11 +61,23 @@ class AccountIcons {
         return Icons.home_rounded;
       case 'handyman':
         return Icons.handyman_rounded;
+      case 'public_off':
+        return Icons.public_off_rounded;
       default:
         return Icons.account_balance_rounded;
     }
   }
 
-static Color colorFor(AccountType type) =>
-    type == AccountType.asset ? AppColors.success : AppColors.primaryBlue;
+  static Color colorFor(AccountType type) {
+    switch (type) {
+      case AccountType.asset:
+        return AppColors
+            .success /* your existing asset color — often success */;
+      case AccountType.liability:
+        return AppColors
+            .primaryBlue /* your existing liability color — often primary */;
+      case AccountType.untracked:
+        return const Color(0xFF94A3B8);
+    }
+  }
 }

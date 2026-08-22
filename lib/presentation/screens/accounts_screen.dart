@@ -24,6 +24,7 @@ class AccountsScreen extends ConsumerStatefulWidget {
 
 class _AccountsScreenState extends ConsumerState<AccountsScreen> {
   _BalanceChartRange _chartRange = _BalanceChartRange.d90;
+  bool _externalsExpanded = true;
 
   @override
   Widget build(BuildContext context) {
@@ -43,11 +44,12 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
             children: [
               const Spacer(),
               ElevatedButton.icon(
-                onPressed: () {
-                  showDialog(
+                onPressed: () async {
+                  await showDialog(
                     context: context,
                     builder: (context) => const AddAccountDialog(),
                   );
+                  ref.invalidate(accountsProvider);
                 },
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Add Account'),
@@ -69,30 +71,15 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
         Expanded(
           child: accountsAsync.when(
             data: (accounts) {
-              final tracked = accounts.where((a) => !a.isUntracked).toList();
-
-              if (tracked.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.account_balance_rounded,
-                        size: 48,
-                        color: colors.textSecondary,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No accounts yet',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
+              final tracked = accounts
+                  .where((a) => !a.isUntracked && a.isActive)
+                  .toList();
+              final externals =
+                  accounts.where((a) => a.isUntracked && a.isActive).toList()
+                    ..sort(
+                      (a, b) =>
+                          a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+                    );
 
               return balancesAsync.when(
                 data: (balances) {
@@ -103,75 +90,174 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                       return ListView(
                         padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
                         children: [
-                          Row(
-                            children: [
-                              Text(
-                                'Balance history',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: colors.textSecondary,
+                          if (tracked.isNotEmpty) ...[
+                            Row(
+                              children: [
+                                Text(
+                                  'Balance history',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: colors.textSecondary,
+                                  ),
                                 ),
-                              ),
-                              const Spacer(),
-                              _RangeChip(
-                                label: '30d',
-                                selected: _chartRange == _BalanceChartRange.d30,
-                                onTap: () => setState(
-                                  () => _chartRange = _BalanceChartRange.d30,
+                                const Spacer(),
+                                _RangeChip(
+                                  label: '30d',
+                                  selected:
+                                      _chartRange == _BalanceChartRange.d30,
+                                  onTap: () => setState(
+                                    () => _chartRange = _BalanceChartRange.d30,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 6),
-                              _RangeChip(
-                                label: '90d',
-                                selected: _chartRange == _BalanceChartRange.d90,
-                                onTap: () => setState(
-                                  () => _chartRange = _BalanceChartRange.d90,
+                                const SizedBox(width: 6),
+                                _RangeChip(
+                                  label: '90d',
+                                  selected:
+                                      _chartRange == _BalanceChartRange.d90,
+                                  onTap: () => setState(
+                                    () => _chartRange = _BalanceChartRange.d90,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 6),
-                              _RangeChip(
-                                label: 'YTD',
-                                selected: _chartRange == _BalanceChartRange.ytd,
-                                onTap: () => setState(
-                                  () => _chartRange = _BalanceChartRange.ytd,
+                                const SizedBox(width: 6),
+                                _RangeChip(
+                                  label: 'YTD',
+                                  selected:
+                                      _chartRange == _BalanceChartRange.ytd,
+                                  onTap: () => setState(
+                                    () => _chartRange = _BalanceChartRange.ytd,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 6),
-                              _RangeChip(
-                                label: 'All',
-                                selected: _chartRange == _BalanceChartRange.all,
-                                onTap: () => setState(
-                                  () => _chartRange = _BalanceChartRange.all,
+                                const SizedBox(width: 6),
+                                _RangeChip(
+                                  label: 'All',
+                                  selected:
+                                      _chartRange == _BalanceChartRange.all,
+                                  onTap: () => setState(
+                                    () => _chartRange = _BalanceChartRange.all,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Each chart uses that account’s own scale',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: colors.textSecondary,
+                              ],
                             ),
-                          ),
-                          const SizedBox(height: 16),
-                          for (final account in tracked) ...[
-                            _AccountCard(
-                              account: account,
-                              liveBalance:
-                                  balances[account.id] ??
-                                  account.startingBalance,
-                              series: _buildSeries(
+                            const SizedBox(height: 4),
+                            Text(
+                              'Each chart uses that account’s own scale',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colors.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            for (final account in tracked) ...[
+                              _AccountCard(
                                 account: account,
-                                transactions: transactions,
-                                rangeStart: bounds.$1,
-                                rangeEnd: bounds.$2,
+                                liveBalance:
+                                    balances[account.id] ??
+                                    account.startingBalance,
+                                series: _buildSeries(
+                                  account: account,
+                                  transactions: transactions,
+                                  rangeStart: bounds.$1,
+                                  rangeEnd: bounds.$2,
+                                ),
+                                money: money,
                               ),
-                              money: money,
-                            ),
+                              const SizedBox(height: 12),
+                            ],
                             const SizedBox(height: 12),
-                          ],
+                          ] else
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 24),
+                              child: Center(
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.account_balance_rounded,
+                                      size: 48,
+                                      color: colors.textSecondary,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'No tracked accounts yet',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: colors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+
+                          // —— External accounts ——
+                          _ExternalAccountsSection(
+                            externals: externals,
+                            expanded: _externalsExpanded,
+                            onToggleExpanded: () => setState(
+                              () => _externalsExpanded = !_externalsExpanded,
+                            ),
+                            onAdd: () async {
+                              await showDialog(
+                                context: context,
+                                builder: (context) => const AddAccountDialog(
+                                  initialType: AccountType.untracked,
+                                ),
+                              );
+                              ref.invalidate(accountsProvider);
+                            },
+                            onEdit: (account) async {
+                              await showDialog(
+                                context: context,
+                                builder: (context) =>
+                                    AddAccountDialog(existing: account),
+                              );
+                              ref.invalidate(accountsProvider);
+                            },
+                            onArchive: (account) async {
+                              final ok = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text(
+                                    'Archive external account?',
+                                  ),
+                                  content: Text(
+                                    '"${account.name}" will be hidden from transfer pickers. '
+                                    'Past transfers stay in history.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      child: const Text('Archive'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (ok != true) return;
+                              try {
+                                await ref
+                                    .read(accountRepositoryProvider)
+                                    .archive(account.id);
+                                ref.invalidate(accountsProvider);
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Archived "${account.name}"'),
+                                  ),
+                                );
+                              } catch (e) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(
+                                  context,
+                                ).showSnackBar(SnackBar(content: Text('$e')));
+                              }
+                            },
+                            onRestore: () => _restoreArchivedExternal(),
+                          ),
                         ],
                       );
                     },
@@ -190,6 +276,61 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
         ),
       ],
     );
+  }
+
+  Future<void> _restoreArchivedExternal() async {
+    final accounts = ref.read(accountsProvider).valueOrNull ?? <Account>[];
+    final archived =
+        accounts.where((a) => a.isUntracked && !a.isActive).toList()..sort(
+          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+        );
+
+    if (archived.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No archived external accounts')),
+      );
+      return;
+    }
+
+    final chosen = await showDialog<Account>(
+      context: context,
+      builder: (ctx) {
+        return SimpleDialog(
+          title: const Text('Restore external account'),
+          children: [
+            for (final a in archived)
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(ctx, a),
+                child: Text(a.name),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel'),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (chosen == null) return;
+
+    try {
+      await ref.read(accountRepositoryProvider).restore(chosen);
+      ref.invalidate(accountsProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Restored "${chosen.name}"')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
   }
 
   (DateTime, DateTime) _rangeBounds(_BalanceChartRange r) {
@@ -259,6 +400,160 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
       case TransactionType.transfer:
         return balance + t.amount;
     }
+  }
+}
+
+class _ExternalAccountsSection extends StatelessWidget {
+  final List<Account> externals;
+  final bool expanded;
+  final VoidCallback onToggleExpanded;
+  final VoidCallback onAdd;
+  final ValueChanged<Account> onEdit;
+  final ValueChanged<Account> onArchive;
+  final VoidCallback onRestore;
+
+  const _ExternalAccountsSection({
+    required this.externals,
+    required this.expanded,
+    required this.onToggleExpanded,
+    required this.onAdd,
+    required this.onEdit,
+    required this.onArchive,
+    required this.onRestore,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            InkWell(
+              onTap: onToggleExpanded,
+              borderRadius: BorderRadius.circular(6),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      expanded
+                          ? Icons.expand_more_rounded
+                          : Icons.chevron_right_rounded,
+                      size: 22,
+                      color: colors.textSecondary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      expanded
+                          ? 'External accounts'
+                          : 'External accounts (${externals.length})',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Spacer(),
+            TextButton(onPressed: onRestore, child: const Text('Restore')),
+            const SizedBox(width: 4),
+            TextButton.icon(
+              onPressed: onAdd,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Add'),
+            ),
+          ],
+        ),
+        if (expanded) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Transfers only · not in net worth',
+            style: TextStyle(fontSize: 12, color: colors.textSecondary),
+          ),
+          const SizedBox(height: 12),
+          if (externals.isEmpty)
+            Text(
+              'No external accounts yet. Add one for transfers to brokerage, kids’ accounts, etc.',
+              style: TextStyle(fontSize: 13, color: colors.textSecondary),
+            )
+          else
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (final a in externals)
+                  _ExternalChip(
+                    account: a,
+                    onEdit: () => onEdit(a),
+                    onArchive: () => onArchive(a),
+                  ),
+              ],
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ExternalChip extends StatelessWidget {
+  final Account account;
+  final VoidCallback onEdit;
+  final VoidCallback onArchive;
+
+  const _ExternalChip({
+    required this.account,
+    required this.onEdit,
+    required this.onArchive,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    final iconColor = AccountIcons.colorFor(AccountType.untracked);
+
+    return Container(
+      constraints: const BoxConstraints(minWidth: 120, maxWidth: 200),
+      padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(AccountIcons.data(account.iconKey), size: 18, color: iconColor),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              account.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+          ),
+          PopupMenuButton<String>(
+            padding: EdgeInsets.zero,
+            iconSize: 18,
+            icon: Icon(Icons.more_vert, size: 18, color: colors.textSecondary),
+            onSelected: (value) {
+              if (value == 'edit') onEdit();
+              if (value == 'archive') onArchive();
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'edit', child: Text('Edit')),
+              PopupMenuItem(value: 'archive', child: Text('Archive')),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -419,12 +714,12 @@ class _AccountCard extends ConsumerWidget {
                   final repo = ref.read(accountRepositoryProvider);
 
                   if (value == 'edit') {
-                    showDialog(
+                    await showDialog(
                       context: context,
                       builder: (context) => AddAccountDialog(existing: account),
                     );
+                    ref.invalidate(accountsProvider);
                   }
-
                   if (value == 'delete') {
                     await repo.delete(account.id);
                     ref.invalidate(accountsProvider);

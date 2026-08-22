@@ -4,7 +4,7 @@ Desktop budgeting for **projections** and **actuals** — plan ahead, track spen
 
 **Privacy first:** no accounts, no sign-up, no cloud sync, no bank linking. Your data stays on your device.
 
-> **Status:** Windows beta (`v0.2.0`+) — friend testing, not for sale yet.  
+> **Status:** Windows beta (`v0.2.x`) — friend testing, not for sale yet.  
 > Planned paid model: **one-time** license (~$29–30), not a subscription.
 
 ---
@@ -12,15 +12,17 @@ Desktop budgeting for **projections** and **actuals** — plan ahead, track spen
 ## What it does
 
 - **Projection engine** — recurring income/expenses, timeline, paid/skip, running balance, safe-to-spend  
-- **Actuals** — transactions, accounts, category spending  
+- **Actuals** — transactions, accounts, category spending, actual form templates  
 - **Transfers** — move money between accounts without counting as income or expense  
-- **Untracked** — transfer to/from places outside this budget (brokerage, kids, external savings). Only the tracked account balance changes; not income/expense; hidden from Accounts. Rename in Settings.  
+- **External (untracked) accounts** — multiple named transfer counterparties outside this budget’s net worth (archive/restore; not on Accounts charts)  
+- **Fixed vs Variable** — classify projected series; optional badges/mix in Settings  
 - **Categories** — monthly Set budgets or targets from projection; progress bars (solid or gradient colors)  
-- **Analytics** — targets, budget performance, trends, projected vs actual  
+- **Analytics** — Budget / Activity / Comparison tabs (targets, performance, trends, projected vs actual, expense mix, net transfers)  
+- **Tools** — debt repayment & savings/growth calculators (what-if only; remember last inputs per account; export schedule CSV)  
 - **Modes** — Combined · Projection only · Actuals only  
 - **Multi-budget** — create and switch separate budget files  
-- **Import / export** — CSV and paste import for transactions; CSV export (transactions + projections)  
-- **Guide** — in-app User Guide, Glossary, and About  
+- **Import / export** — CSV and paste import for transactions; CSV export (transactions + projections + calculator schedules)  
+- **Guide** — in-app User Guide, Glossary, and About (with search)  
 
 ---
 
@@ -36,19 +38,25 @@ It is **not** a Mint/YNAB/Monarch replacement with bank sync, mobile-first desig
 
 | Platform | Status |
 |----------|--------|
-| **Windows** | Primary beta builds |
-| macOS | Planned (not packaged yet) |
+| **Windows** | Primary beta builds (GitHub Releases zip) |
+| **macOS** | Unsigned CI artifact available on Releases (Right-click → Open) |
 | Mobile | Not in scope for v0.x |
 
 ---
 
 ## Install (Windows beta)
 
-1. Open **Releases** on this repo and download the latest **zip** (not the source tree).  
+1. Open **Releases** on this repo and download the latest **Windows zip** (not the source tree).  
 2. Unzip anywhere (e.g. `Downloads/Timechain`).  
-3. Run the `.exe` inside the folder (name matches the build; often `budget_app.exe` or similar until renamed).  
+3. Run the `.exe` inside the folder (name matches the build; often still `budget_app.exe` until renamed).  
 
 Windows may show **SmartScreen** (“Windows protected your PC”) because the build is **unsigned**. Choose **More info** → **Run anyway** if you trust this repo.
+
+### macOS (friend beta)
+
+1. Download the **macOS** artifact from the same Release (or Actions).  
+2. Unzip → **Right-click the app → Open** (unsigned; Gatekeeper will warn).  
+3. Notarization is **not** done for beta.
 
 ---
 
@@ -56,6 +64,8 @@ Windows may show **SmartScreen** (“Windows protected your PC”) because the b
 
 Budgets are **local SQLite** files under the app documents folder.  
 Use **Settings** to create/switch budgets and to import/export.
+
+Calculator presets are stored **inside each budget file** (switching budgets switches saved calculator inputs too).
 
 There is **no remote backup** — copy your budget files yourself if they matter.
 
@@ -74,16 +84,23 @@ There is **no remote backup** — copy your budget files yourself if they matter
 
 ---
 
-## Untracked (quick rule)
+## External / untracked (quick rule)
 
-Use **Transfer** with **Untracked** as the other side when money leaves or enters accounts you don’t fully track in this file.
+Use **Transfer** with an **external** account as the other side when money leaves or enters places you don’t fully track in this file (brokerage, kids’ accounts, etc.).
 
 - Does **not** count as income or expense  
-- Does **not** appear under Accounts or net worth  
-- Rename the label in **Settings** (e.g. “Kids 529”) — behavior stays the same  
-- To track a real balance here, add a normal account instead  
+- Does **not** appear on tracked Accounts / net worth  
+- Multiple named externals; archive instead of hard delete; at least one always kept  
+- Manage under **Accounts** (not Settings)  
+- To track a real balance here, add a normal **asset** or **liability** account instead  
 
 Details are in the in-app **Guide**.
+
+---
+
+## Tools (quick rule)
+
+Debt and savings calculators are **what-if only**. They never post transactions or change balances. Press **Calculate** to run; last inputs are remembered (including per linked account).
 
 ---
 
@@ -91,9 +108,9 @@ Details are in the in-app **Guide**.
 
 | Kind | Example | Meaning |
 |------|---------|---------|
-| **App version** | `0.2.0` / `0.2.1` | User-facing, GitHub release tags |
-| **Build number** | `+2` in `pubspec.yaml` | Monotonic package build; does not reset |
-| **DB schema** | e.g. `12` | Internal migrations only |
+| **App version** | `0.2.2` / `0.2.3` | User-facing, GitHub release tags |
+| **Build number** | `+N` in `pubspec.yaml` | Monotonic package build; does not reset |
+| **DB schema** | e.g. `16` | Internal migrations only |
 
 ---
 

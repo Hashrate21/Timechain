@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/money_format.dart';
 import '../../domain/entities/app_settings.dart';
@@ -11,16 +12,36 @@ class DashboardScreen extends ConsumerWidget {
 
   String _fmt(DateTime d) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[d.month - 1]} ${d.day}, ${d.year}';
   }
 
   String _fmtShort(DateTime d) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[d.month - 1]} ${d.day}';
   }
@@ -44,8 +65,7 @@ class DashboardScreen extends ConsumerWidget {
     WidgetRef ref,
     AppSettings settings,
   ) async {
-    final initial =
-        ref.read(projectionCustomStartProvider) ?? DateTime.now();
+    final initial = ref.read(projectionCustomStartProvider) ?? DateTime.now();
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -55,8 +75,11 @@ class DashboardScreen extends ConsumerWidget {
     if (picked == null) return;
     ref.read(projectionLookbackModeProvider.notifier).state =
         ProjectionLookbackMode.custom;
-    ref.read(projectionCustomStartProvider.notifier).state =
-        DateTime(picked.year, picked.month, picked.day);
+    ref.read(projectionCustomStartProvider.notifier).state = DateTime(
+      picked.year,
+      picked.month,
+      picked.day,
+    );
     await _persistRange(ref, settings);
   }
 
@@ -65,8 +88,7 @@ class DashboardScreen extends ConsumerWidget {
     WidgetRef ref,
     AppSettings settings,
   ) async {
-    final initial =
-        ref.read(projectionCustomEndProvider) ?? DateTime.now();
+    final initial = ref.read(projectionCustomEndProvider) ?? DateTime.now();
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -76,9 +98,16 @@ class DashboardScreen extends ConsumerWidget {
     if (picked == null) return;
     ref.read(projectionHorizonModeProvider.notifier).state =
         ProjectionHorizonMode.custom;
-    ref.read(projectionCustomEndProvider.notifier).state =
-        DateTime(picked.year, picked.month, picked.day);
+    ref.read(projectionCustomEndProvider.notifier).state = DateTime(
+      picked.year,
+      picked.month,
+      picked.day,
+    );
     await _persistRange(ref, settings);
+  }
+
+  CostNature _natureFor(Map<String, CostNature> byTemplate, String templateId) {
+    return byTemplate[templateId] ?? CostNature.variable;
   }
 
   @override
@@ -94,11 +123,16 @@ class DashboardScreen extends ConsumerWidget {
     final canLastPay = ref.watch(canUseLastPayProvider);
     final canNextPay = ref.watch(canUseNextPayProvider);
     final categoriesAsync = ref.watch(categoriesProvider);
+    final templatesAsync = ref.watch(projectedTransactionsProvider);
     final skippedIds =
         ref.watch(skippedOccurrenceIdsProvider).valueOrNull ?? <String>{};
 
     final categoryNames = <String, String>{
       for (final c in categoriesAsync.valueOrNull ?? []) c.id: c.name,
+    };
+
+    final natureByTemplate = <String, CostNature>{
+      for (final t in templatesAsync.valueOrNull ?? []) t.id: t.costNature,
     };
 
     return occurrencesAsync.when(
@@ -107,27 +141,41 @@ class DashboardScreen extends ConsumerWidget {
           data: (paidIds) {
             return settingsAsync.when(
               data: (settings) {
-                String money(double v) =>
-                    formatMoneyFromSettings(v, settings);
+                String money(double v) => formatMoneyFromSettings(v, settings);
                 final today = DateTime.now();
-                final todayDate =
-                    DateTime(today.year, today.month, today.day);
+                final todayDate = DateTime(today.year, today.month, today.day);
+                final showCostNature = settings.showCostNature;
 
                 double projectedIncome = 0;
                 double projectedExpense = 0;
                 double unpaidExpense = 0;
+                double projectedExpenseFixed = 0;
+                double projectedExpenseVariable = 0;
+                double unpaidExpenseFixed = 0;
+                double unpaidExpenseVariable = 0;
 
                 for (final occ in occurrences) {
                   if (skippedIds.contains(occ.id)) continue;
 
                   final isPaid = paidIds.contains(occ.id);
+                  final nature = _natureFor(natureByTemplate, occ.templateId);
 
                   if (occ.type == TransactionType.income) {
                     projectedIncome += occ.amount;
                   } else {
                     projectedExpense += occ.amount;
+                    if (nature == CostNature.fixed) {
+                      projectedExpenseFixed += occ.amount;
+                    } else {
+                      projectedExpenseVariable += occ.amount;
+                    }
                     if (!isPaid) {
                       unpaidExpense += occ.amount;
+                      if (nature == CostNature.fixed) {
+                        unpaidExpenseFixed += occ.amount;
+                      } else {
+                        unpaidExpenseVariable += occ.amount;
+                      }
                     }
                   }
                 }
@@ -137,8 +185,7 @@ class DashboardScreen extends ConsumerWidget {
 
                 double projectedBalance = starting;
                 for (final occ in occurrences) {
-                  if (paidIds.contains(occ.id) ||
-                      skippedIds.contains(occ.id)) {
+                  if (paidIds.contains(occ.id) || skippedIds.contains(occ.id)) {
                     continue;
                   }
                   if (occ.type == TransactionType.income) {
@@ -149,13 +196,16 @@ class DashboardScreen extends ConsumerWidget {
                 }
 
                 final safeToSpend = projectedBalance - safety;
-                final upcoming = occurrences
-                    .where((o) =>
-                        o.type == TransactionType.expense &&
-                        !paidIds.contains(o.id) &&
-                        !skippedIds.contains(o.id))
-                    .toList()
-                  ..sort((a, b) => a.date.compareTo(b.date));
+                final upcoming =
+                    occurrences
+                        .where(
+                          (o) =>
+                              o.type == TransactionType.expense &&
+                              !paidIds.contains(o.id) &&
+                              !skippedIds.contains(o.id),
+                        )
+                        .toList()
+                      ..sort((a, b) => a.date.compareTo(b.date));
 
                 final upcomingPreview = upcoming.take(10).toList();
 
@@ -183,14 +233,16 @@ class DashboardScreen extends ConsumerWidget {
                                 _RangeChip(
                                   label: '1st',
                                   tooltip: 'Start of this month',
-                                  selected: lookbackMode ==
+                                  selected:
+                                      lookbackMode ==
                                       ProjectionLookbackMode.monthStart,
                                   onTap: () async {
                                     ref
-                                        .read(
-                                            projectionLookbackModeProvider
-                                                .notifier)
-                                        .state =
+                                            .read(
+                                              projectionLookbackModeProvider
+                                                  .notifier,
+                                            )
+                                            .state =
                                         ProjectionLookbackMode.monthStart;
                                     await _persistRange(ref, settings);
                                   },
@@ -201,20 +253,20 @@ class DashboardScreen extends ConsumerWidget {
                                   tooltip: canLastPay
                                       ? 'Since last projected income'
                                       : 'Add projected income to use this',
-                                  selected: lookbackMode ==
+                                  selected:
+                                      lookbackMode ==
                                       ProjectionLookbackMode.lastPay,
                                   enabled: canLastPay,
                                   onTap: canLastPay
                                       ? () async {
                                           ref
                                               .read(
-                                                  projectionLookbackModeProvider
-                                                      .notifier)
-                                              .state =
-                                              ProjectionLookbackMode
-                                                  .lastPay;
-                                          await _persistRange(
-                                              ref, settings);
+                                                projectionLookbackModeProvider
+                                                    .notifier,
+                                              )
+                                              .state = ProjectionLookbackMode
+                                              .lastPay;
+                                          await _persistRange(ref, settings);
                                         }
                                       : null,
                                 ),
@@ -222,10 +274,11 @@ class DashboardScreen extends ConsumerWidget {
                                 _RangeChip(
                                   icon: Icons.calendar_today,
                                   tooltip: 'Custom start date',
-                                  selected: lookbackMode ==
+                                  selected:
+                                      lookbackMode ==
                                       ProjectionLookbackMode.custom,
-                                  onTap: () => _pickCustomStart(
-                                      context, ref, settings),
+                                  onTap: () =>
+                                      _pickCustomStart(context, ref, settings),
                                 ),
                                 const SizedBox(width: 16),
                                 Text(
@@ -240,14 +293,15 @@ class DashboardScreen extends ConsumerWidget {
                                 _RangeChip(
                                   label: 'EOM',
                                   tooltip: 'End of this month',
-                                  selected: horizonMode ==
-                                      ProjectionHorizonMode.eom,
+                                  selected:
+                                      horizonMode == ProjectionHorizonMode.eom,
                                   onTap: () async {
                                     ref
-                                        .read(
-                                            projectionHorizonModeProvider
-                                                .notifier)
-                                        .state =
+                                            .read(
+                                              projectionHorizonModeProvider
+                                                  .notifier,
+                                            )
+                                            .state =
                                         ProjectionHorizonMode.eom;
                                     await _persistRange(ref, settings);
                                   },
@@ -258,20 +312,20 @@ class DashboardScreen extends ConsumerWidget {
                                   tooltip: canNextPay
                                       ? 'Until next pay (day before next income)'
                                       : 'Add projected income to use this',
-                                  selected: horizonMode ==
+                                  selected:
+                                      horizonMode ==
                                       ProjectionHorizonMode.nextPay,
                                   enabled: canNextPay,
                                   onTap: canNextPay
                                       ? () async {
                                           ref
                                               .read(
-                                                  projectionHorizonModeProvider
-                                                      .notifier)
-                                              .state =
-                                              ProjectionHorizonMode
-                                                  .nextPay;
-                                          await _persistRange(
-                                              ref, settings);
+                                                projectionHorizonModeProvider
+                                                    .notifier,
+                                              )
+                                              .state = ProjectionHorizonMode
+                                              .nextPay;
+                                          await _persistRange(ref, settings);
                                         }
                                       : null,
                                 ),
@@ -279,10 +333,11 @@ class DashboardScreen extends ConsumerWidget {
                                 _RangeChip(
                                   icon: Icons.calendar_today,
                                   tooltip: 'Custom end date',
-                                  selected: horizonMode ==
+                                  selected:
+                                      horizonMode ==
                                       ProjectionHorizonMode.custom,
-                                  onTap: () => _pickCustomEnd(
-                                      context, ref, settings),
+                                  onTap: () =>
+                                      _pickCustomEnd(context, ref, settings),
                                 ),
                               ],
                             ),
@@ -308,6 +363,7 @@ class DashboardScreen extends ConsumerWidget {
                               value: money(projectedIncome),
                               icon: Icons.arrow_upward_rounded,
                               valueColor: colors.successColor,
+                              tooltip: 'Income in the range (including items marked Paid). Skipped items excluded. If "Until next pay" is chosen for end date, next pay is excluded',
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -317,6 +373,14 @@ class DashboardScreen extends ConsumerWidget {
                               value: money(projectedExpense),
                               icon: Icons.arrow_downward_rounded,
                               valueColor: colors.dangerColor,
+                              tooltip: 'Expenses in the range (including items marked Paid). Skipped items are excluded.',
+                              fixedAmount: showCostNature
+                                  ? projectedExpenseFixed
+                                  : null,
+                              variableAmount: showCostNature
+                                  ? projectedExpenseVariable
+                                  : null,
+                              moneyFn: showCostNature ? money : null,
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -326,6 +390,14 @@ class DashboardScreen extends ConsumerWidget {
                               value: money(unpaidExpense),
                               icon: Icons.pending_actions_rounded,
                               valueColor: colors.warningColor,
+                              tooltip: 'Expenses in the range that have not yet been marked Paid. Skipped items are excluded.',
+                              fixedAmount: showCostNature
+                                  ? unpaidExpenseFixed
+                                  : null,
+                              variableAmount: showCostNature
+                                  ? unpaidExpenseVariable
+                                  : null,
+                              moneyFn: showCostNature ? money : null,
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -337,6 +409,7 @@ class DashboardScreen extends ConsumerWidget {
                               valueColor: safeToSpend >= 0
                                   ? colors.cyan
                                   : colors.dangerColor,
+                              tooltip: 'Projected balance minus your safety buffer. This is what you can still spend while staying above the buffer.',
                             ),
                           ),
                         ],
@@ -372,6 +445,7 @@ class DashboardScreen extends ConsumerWidget {
                                     color: starting >= 0
                                         ? colors.successColor
                                         : colors.dangerColor,
+                                    tooltip: 'Balance at the start of the selected range. Edit it on the Projection screen.',
                                   ),
                                 ),
                                 Container(
@@ -386,6 +460,7 @@ class DashboardScreen extends ConsumerWidget {
                                     color: projectedBalance >= 0
                                         ? colors.primary
                                         : colors.dangerColor,
+                                    tooltip: 'Starting balance + unpaid income − unpaid expenses still ahead in the range.',
                                   ),
                                 ),
                                 Container(
@@ -398,6 +473,7 @@ class DashboardScreen extends ConsumerWidget {
                                     label: 'Safety buffer',
                                     value: money(safety),
                                     color: colors.textSecondary,
+                                    tooltip: 'Amount you want to keep in reserve. Set in Settings. Subtracted from Projected balance to get Safe to Spend.',
                                   ),
                                 ),
                               ],
@@ -420,16 +496,21 @@ class DashboardScreen extends ConsumerWidget {
                                 border: Border.all(color: colors.border),
                               ),
                               child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(
                                     children: [
-                                      const Text(
-                                        'Upcoming Expenses',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
+                                      Tooltip(
+                                        message: 'Unpaid expenses in this range, sorted by date. Overdue items are highlighted.',
+                                        waitDuration: const Duration(
+                                          milliseconds: 500,
+                                        ),
+                                        child: const Text(
+                                          'Upcoming Expenses',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                       ),
                                       const Spacer(),
@@ -455,10 +536,9 @@ class DashboardScreen extends ConsumerWidget {
                                       ),
                                     )
                                   else
-                                    ...upcomingPreview
-                                        .asMap()
-                                        .entries
-                                        .map((entry) {
+                                    ...upcomingPreview.asMap().entries.map((
+                                      entry,
+                                    ) {
                                       final i = entry.key;
                                       final occ = entry.value;
                                       final occDate = DateTime(
@@ -466,18 +546,23 @@ class DashboardScreen extends ConsumerWidget {
                                         occ.date.month,
                                         occ.date.day,
                                       );
-                                      final overdue =
-                                          occDate.isBefore(todayDate);
+                                      final overdue = occDate.isBefore(
+                                        todayDate,
+                                      );
                                       final cat =
                                           categoryNames[occ.categoryId] ??
-                                              'Unknown';
+                                          'Unknown';
+                                      final nature = _natureFor(
+                                        natureByTemplate,
+                                        occ.templateId,
+                                      );
 
                                       return Column(
                                         children: [
                                           Padding(
-                                            padding:
-                                                const EdgeInsets.symmetric(
-                                                    vertical: 8),
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 8,
+                                            ),
                                             child: Row(
                                               children: [
                                                 SizedBox(
@@ -491,13 +576,18 @@ class DashboardScreen extends ConsumerWidget {
                                                           : FontWeight.w500,
                                                       color: overdue
                                                           ? const Color(
-                                                              0xFFF97316)
+                                                              0xFFF97316,
+                                                            )
                                                           : colors
-                                                              .textSecondary,
+                                                                .textSecondary,
                                                     ),
                                                   ),
                                                 ),
-                                                const SizedBox(width: 12),
+                                                if (showCostNature) ...[
+                                                  const SizedBox(width: 8),
+                                                  _CostBadge(nature: nature),
+                                                  const SizedBox(width: 8),
+                                                ],
                                                 Expanded(
                                                   child: Column(
                                                     crossAxisAlignment:
@@ -506,12 +596,10 @@ class DashboardScreen extends ConsumerWidget {
                                                     children: [
                                                       Text(
                                                         occ.name,
-                                                        style:
-                                                            const TextStyle(
+                                                        style: const TextStyle(
                                                           fontSize: 14,
                                                           fontWeight:
-                                                              FontWeight
-                                                                  .w500,
+                                                              FontWeight.w500,
                                                         ),
                                                       ),
                                                       Text(
@@ -529,22 +617,20 @@ class DashboardScreen extends ConsumerWidget {
                                                   money(-occ.amount),
                                                   style: TextStyle(
                                                     fontSize: 14,
-                                                    fontWeight:
-                                                        FontWeight.w700,
-                                                    color:
-                                                        colors.dangerColor,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: colors.dangerColor,
                                                   ),
                                                 ),
                                               ],
                                             ),
                                           ),
-                                          if (i <
-                                              upcomingPreview.length - 1)
+                                          if (i < upcomingPreview.length - 1)
                                             Divider(
                                               height: 1,
                                               thickness: 1,
-                                              color: colors.border
-                                                  .withValues(alpha: 0.5),
+                                              color: colors.border.withValues(
+                                                alpha: 0.5,
+                                              ),
                                             ),
                                         ],
                                       );
@@ -569,13 +655,11 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                 );
               },
-              loading: () =>
-                  const Center(child: CircularProgressIndicator()),
+              loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, s) => Center(child: Text('Error: $e')),
             );
           },
-          loading: () =>
-              const Center(child: CircularProgressIndicator()),
+          loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, s) => Center(child: Text('Error: $e')),
         );
       },
@@ -624,8 +708,8 @@ class _RangeChip extends StatelessWidget {
               color: !enabled
                   ? colors.textSecondary.withValues(alpha: 0.35)
                   : selected
-                      ? Colors.white
-                      : colors.textSecondary,
+                  ? Colors.white
+                  : colors.textSecondary,
             )
           : Text(
               label ?? '',
@@ -635,20 +719,18 @@ class _RangeChip extends StatelessWidget {
                 color: !enabled
                     ? colors.textSecondary.withValues(alpha: 0.35)
                     : selected
-                        ? Colors.white
-                        : colors.textSecondary,
+                    ? Colors.white
+                    : colors.textSecondary,
               ),
             ),
     );
 
     return Tooltip(
       message: tooltip,
+      waitDuration: const Duration(milliseconds: 500),
       child: Opacity(
         opacity: enabled ? 1 : 0.5,
-        child: GestureDetector(
-          onTap: enabled ? onTap : null,
-          child: child,
-        ),
+        child: GestureDetector(onTap: enabled ? onTap : null, child: child),
       ),
     );
   }
@@ -659,19 +741,29 @@ class _SummaryCard extends StatelessWidget {
   final String value;
   final IconData icon;
   final Color? valueColor;
+  final String? tooltip;
+  final double? fixedAmount;
+  final double? variableAmount;
+  final String Function(double)? moneyFn;
 
   const _SummaryCard({
     required this.title,
     required this.value,
     required this.icon,
     this.valueColor,
+    this.tooltip,
+    this.fixedAmount,
+    this.variableAmount,
+    this.moneyFn,
   });
 
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
+    final showBar =
+        fixedAmount != null && variableAmount != null && moneyFn != null;
 
-    return Container(
+    final card = Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surface,
@@ -692,10 +784,7 @@ class _SummaryCard extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             title,
-            style: TextStyle(
-              fontSize: 13,
-              color: colors.textSecondary,
-            ),
+            style: TextStyle(fontSize: 13, color: colors.textSecondary),
           ),
           const SizedBox(height: 4),
           Text(
@@ -707,7 +796,119 @@ class _SummaryCard extends StatelessWidget {
               color: valueColor,
             ),
           ),
+          // Shared footer slot — same height on all four cards
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 22,
+            child: showBar
+                ? _FixedVariableBar(
+                    fixed: fixedAmount!,
+                    variable: variableAmount!,
+                    money: moneyFn!,
+                  )
+                : const SizedBox.shrink(),
+          ),
         ],
+      ),
+    );
+
+    if (tooltip == null || tooltip!.isEmpty) return card;
+
+    return Tooltip(
+      message: tooltip!,
+      waitDuration: const Duration(milliseconds: 500),
+      child: card,
+    );
+  }
+}
+
+class _FixedVariableBar extends StatelessWidget {
+  final double fixed;
+  final double variable;
+  final String Function(double) money;
+
+  const _FixedVariableBar({
+    required this.fixed,
+    required this.variable,
+    required this.money,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    final total = fixed + variable;
+    final fFrac = total > 0 ? (fixed / total).clamp(0.0, 1.0) : 0.0;
+    final vFrac = (1.0 - fFrac).clamp(0.0, 1.0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(3),
+          child: SizedBox(
+            height: 5,
+            child: total <= 0
+                ? Container(color: colors.border.withValues(alpha: 0.4))
+                : Row(
+                    children: [
+                      if (fFrac > 0)
+                        Expanded(
+                          flex: (fFrac * 1000).round().clamp(1, 1000),
+                          child: Container(color: colors.primary),
+                        ),
+                      if (vFrac > 0)
+                        Expanded(
+                          flex: (vFrac * 1000).round().clamp(1, 1000),
+                          child: Container(
+                            color: colors.warningColor.withValues(alpha: 0.85),
+                          ),
+                        ),
+                    ],
+                  ),
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          total <= 0 ? '—' : 'F ${money(fixed)} · V ${money(variable)}',
+          style: TextStyle(fontSize: 10, color: colors.textSecondary),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    );
+  }
+}
+
+class _CostBadge extends StatelessWidget {
+  final CostNature nature;
+
+  const _CostBadge({required this.nature});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    final isFixed = nature == CostNature.fixed;
+    final bg = isFixed
+        ? colors.primary.withValues(alpha: 0.18)
+        : colors.warningColor.withValues(alpha: 0.18);
+    final fg = isFixed ? colors.primary : colors.warningColor;
+
+    return Tooltip(
+      message: isFixed ? 'Fixed' : 'Variable',
+      waitDuration: const Duration(milliseconds: 500),
+      child: Container(
+        width: 22,
+        height: 22,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+        child: Text(
+          isFixed ? 'F' : 'V',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: fg,
+          ),
+        ),
       ),
     );
   }
@@ -717,28 +918,27 @@ class _BalanceTile extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
+  final String? tooltip;
 
   const _BalanceTile({
     required this.label,
     required this.value,
     required this.color,
+    this.tooltip,
   });
 
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
 
-    return Padding(
+    final tile = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
-            style: TextStyle(
-              fontSize: 12,
-              color: colors.textSecondary,
-            ),
+            style: TextStyle(fontSize: 12, color: colors.textSecondary),
           ),
           const SizedBox(height: 6),
           Text(
@@ -751,6 +951,14 @@ class _BalanceTile extends StatelessWidget {
           ),
         ],
       ),
+    );
+
+    if (tooltip == null || tooltip!.isEmpty) return tile;
+
+    return Tooltip(
+      message: tooltip!,
+      waitDuration: const Duration(milliseconds: 500),
+      child: tile,
     );
   }
 }

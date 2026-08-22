@@ -100,10 +100,9 @@ class TransactionCsv {
       final cols = splitLine(lines[i]);
       final lineNumber = i + 1;
       if (cols.length < 6) {
-        rows.add(ParsedTxRow(
-          lineNumber: lineNumber,
-          error: 'Need at least 6 columns',
-        ));
+        rows.add(
+          ParsedTxRow(lineNumber: lineNumber, error: 'Need at least 6 columns'),
+        );
         continue;
       }
 
@@ -135,28 +134,36 @@ class TransactionCsv {
       String? fromA;
       String? toA;
       if (typeRaw == 'transfer') {
-        final parts = account.split('→').map((s) => s.trim()).toList();
-        if (parts.length != 2) {
-          error = error ?? 'Transfer account must be "From → To"';
+        final sep = account.contains('>')
+            ? '>'
+            : account.contains('→')
+            ? '→'
+            : null;
+        final parts = sep == null
+            ? <String>[]
+            : account.split(sep).map((s) => s.trim()).toList();
+        if (parts.length != 2 || parts[0].isEmpty || parts[1].isEmpty) {
+          error = error ?? 'Transfer account must be "From > To"';
         } else {
           fromA = parts[0];
           toA = parts[1];
         }
       }
-
-      rows.add(ParsedTxRow(
-        lineNumber: lineNumber,
-        date: date,
-        accountRaw: account,
-        description: description,
-        categoryRaw: category,
-        typeRaw: typeRaw,
-        amount: amount,
-        notes: notes,
-        error: error,
-        fromAccountRaw: fromA,
-        toAccountRaw: toA,
-      ));
+      rows.add(
+        ParsedTxRow(
+          lineNumber: lineNumber,
+          date: date,
+          accountRaw: account,
+          description: description,
+          categoryRaw: category,
+          typeRaw: typeRaw,
+          amount: amount,
+          notes: notes,
+          error: error,
+          fromAccountRaw: fromA,
+          toAccountRaw: toA,
+        ),
+      );
     }
     return rows;
   }

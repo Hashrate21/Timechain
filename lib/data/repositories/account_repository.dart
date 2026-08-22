@@ -46,7 +46,7 @@ class AccountRepository {
     );
   }
 
-  /// All accounts including Untracked (for transfer pickers, rename).
+  /// All accounts including untracked (transfer pickers, settings, CSV).
   Future<List<Account>> getAll() async {
     final db = await dbHelper.database;
     final maps = await db.query(
@@ -56,21 +56,29 @@ class AccountRepository {
     return maps.map(_fromMap).toList();
   }
 
-  /// Accounts screen + net worth — excludes Untracked.
+  /// Accounts screen + net worth — excludes untracked.
   Future<List<Account>> getTracked() async {
     final all = await getAll();
-    return all.where((a) => !a.isUntracked).toList();
+    return all.where((a) => !a.isUntracked && a.isActive).toList();
   }
 
+  Future<List<Account>> getActiveUntracked() async {
+    final all = await getAll();
+    return all.where((a) => a.isUntracked && a.isActive).toList();
+  }
+
+  Future<int> countActiveUntracked() async {
+    return (await getActiveUntracked()).length;
+  }
+
+  /// Prefer first active untracked (seed or any). Used as soft default.
   Future<Account?> getUntracked() async {
-    final db = await dbHelper.database;
-    final maps = await db.query(
-      'accounts',
-      where: 'id = ?',
-      whereArgs: [Account.untrackedId],
-    );
-    if (maps.isEmpty) return null;
-    return _fromMap(maps.first);
+    final list = await getActiveUntracked();
+    if (list.isEmpty) return null;
+    for (final a in list) {
+      if (a.id == Account.untrackedId) return a;
+    }
+    return list.first;
   }
 
   Future<void> ensureUntrackedExists() async {
@@ -89,18 +97,15 @@ class AccountRepository {
     );
   }
 
+  /// Kept for Settings compatibility; prefers system id if present.
   Future<void> renameUntracked(String name) async {
     await ensureUntrackedExists();
     final trimmed = name.trim().isEmpty
         ? Account.defaultUntrackedName
         : name.trim();
-    final db = await dbHelper.database;
-    await db.update(
-      'accounts',
-      {'name': trimmed},
-      where: 'id = ?',
-      whereArgs: [Account.untrackedId],
-    );
+    final current = await getUntracked();
+    if (current == null) return;
+    await update(current.copyWith(name: trimmed));
   }
 
   Future<void> insert(Account account) async {
@@ -119,18 +124,14 @@ class AccountRepository {
   }
 
   Future<void> update(Account account) async {
-    if (account.isUntracked) {
-      // Only name (and safe fields) — never type/balance games
-      await renameUntracked(account.name);
-      return;
-    }
     final db = await dbHelper.database;
+    final balance = account.isUntracked ? 0.0 : account.startingBalance;
     await db.update(
       'accounts',
       {
         'name': account.name,
         'type': _typeToDb(account.type),
-        'starting_balance': account.startingBalance,
+        'starting_balance': balance,
         'currency': account.currency,
         'is_active': account.isActive ? 1 : 0,
         'sort_order': account.sortOrder,
@@ -141,10 +142,49 @@ class AccountRepository {
     );
   }
 
-  Future<void> delete(String id) async {
-    if (id == Account.untrackedId) {
-      throw StateError('Cannot delete the Untracked account');
+  /// Soft-deactivate. Cannot archive the last active untracked account.
+  Future<void> archive(String id) async {
+    final all = await getAll();
+    Account? target;
+    for (final a in all) {
+      if (a.id == id) {
+        target = a;
+        break;
+      }
     }
+    if (target == null) return;
+
+    if (target.isUntracked && target.isActive) {
+      final activeCount = all.where((a) => a.isUntracked && a.isActive).length;
+      if (activeCount <= 1) {
+        throw StateError('Keep at least one untracked account');
+      }
+    }
+
+    await update(target.copyWith(isActive: false));
+  }
+
+  Future<void> restore(Account account) async {
+    await update(account.copyWith(isActive: true));
+  }
+
+  /// Tracked: hard delete. Untracked: archive (last-untracked guarded).
+  Future<void> delete(String id) async {
+    final all = await getAll();
+    Account? target;
+    for (final a in all) {
+      if (a.id == id) {
+        target = a;
+        break;
+      }
+    }
+    if (target == null) return;
+
+    if (target.isUntracked) {
+      await archive(id);
+      return;
+    }
+
     final db = await dbHelper.database;
     await db.delete('accounts', where: 'id = ?', whereArgs: [id]);
   }
@@ -155,14 +195,11 @@ class AccountRepository {
     double startingBalance = 0.0,
     String? iconKey,
   }) async {
-    if (type == AccountType.untracked) {
-      throw StateError('Use ensureUntrackedExists / renameUntracked');
-    }
     final account = Account(
       id: _uuid.v4(),
-      name: name,
+      name: name.trim(),
       type: type,
-      startingBalance: startingBalance,
+      startingBalance: type == AccountType.untracked ? 0.0 : startingBalance,
       createdAt: DateTime.now(),
       iconKey: iconKey ?? Account.defaultIconFor(type),
     );

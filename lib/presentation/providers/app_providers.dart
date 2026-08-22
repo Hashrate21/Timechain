@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+
 import '../../data/database/database_helper.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../data/repositories/account_repository.dart';
@@ -16,6 +17,9 @@ import '../../domain/entities/category.dart';
 import '../../domain/entities/projected_transaction.dart';
 import '../../domain/entities/actual_transaction.dart';
 import '../../domain/services/projection_service.dart';
+import '../../data/repositories/actual_template_repository.dart';
+import '../../domain/entities/actual_template.dart';
+import '../../data/repositories/calculator_preset_repository.dart';
 
 final activeBudgetPathProvider = StateProvider<String?>((ref) => null);
 
@@ -30,6 +34,7 @@ void invalidateAllBudgetData(WidgetRef ref) {
   ref.invalidate(accountBalancesProvider);
   ref.invalidate(categoryBudgetsProvider);
   ref.invalidate(currentMonthCategoryBudgetsProvider);
+  ref.invalidate(actualTemplatesProvider);
 }
 
 Future<void> switchBudget(WidgetRef ref, String path) async {
@@ -44,6 +49,7 @@ Future<void> createBudget(WidgetRef ref, String name) async {
       DatabaseHelper.instance.currentPath;
   invalidateAllBudgetData(ref);
 }
+
 // ========== DATABASE ==========
 final databaseHelperProvider = Provider<DatabaseHelper>((ref) {
   return DatabaseHelper.instance;
@@ -64,13 +70,13 @@ final categoryRepositoryProvider = Provider<CategoryRepository>((ref) {
 
 final projectedTransactionRepositoryProvider =
     Provider<ProjectedTransactionRepository>((ref) {
-  return ProjectedTransactionRepository(ref.watch(databaseHelperProvider));
-});
+      return ProjectedTransactionRepository(ref.watch(databaseHelperProvider));
+    });
 
 final actualTransactionRepositoryProvider =
     Provider<ActualTransactionRepository>((ref) {
-  return ActualTransactionRepository(ref.watch(databaseHelperProvider));
-});
+      return ActualTransactionRepository(ref.watch(databaseHelperProvider));
+    });
 
 // ========== SETTINGS ==========
 final settingsProvider = FutureProvider<AppSettings>((ref) async {
@@ -113,7 +119,7 @@ class ProjectedTransactionsNotifier
     final current = state.value ?? [];
     state = AsyncData([
       for (final item in current)
-        if (item.id == tx.id) tx else item
+        if (item.id == tx.id) tx else item,
     ]);
   }
 
@@ -132,26 +138,27 @@ class ProjectedTransactionsNotifier
   }
 }
 
-final projectedTransactionsProvider = AsyncNotifierProvider<
-    ProjectedTransactionsNotifier, List<ProjectedTransaction>>(
-  ProjectedTransactionsNotifier.new,
-);
+final projectedTransactionsProvider =
+    AsyncNotifierProvider<
+      ProjectedTransactionsNotifier,
+      List<ProjectedTransaction>
+    >(ProjectedTransactionsNotifier.new);
 
 final projectedIncomesProvider =
     Provider<AsyncValue<List<ProjectedTransaction>>>((ref) {
-  final all = ref.watch(projectedTransactionsProvider);
-  return all.whenData(
-    (list) => list.where((t) => t.type == TransactionType.income).toList(),
-  );
-});
+      final all = ref.watch(projectedTransactionsProvider);
+      return all.whenData(
+        (list) => list.where((t) => t.type == TransactionType.income).toList(),
+      );
+    });
 
 final projectedExpensesProvider =
     Provider<AsyncValue<List<ProjectedTransaction>>>((ref) {
-  final all = ref.watch(projectedTransactionsProvider);
-  return all.whenData(
-    (list) => list.where((t) => t.type == TransactionType.expense).toList(),
-  );
-});
+      final all = ref.watch(projectedTransactionsProvider);
+      return all.whenData(
+        (list) => list.where((t) => t.type == TransactionType.expense).toList(),
+      );
+    });
 
 // ========== ACTUAL TRANSACTIONS ==========
 
@@ -228,8 +235,7 @@ class ActualTransactionsNotifier
   }) async {
     final repo = ref.read(actualTransactionRepositoryProvider);
     final current = state.value ?? [];
-    final oldLegs =
-        current.where((t) => t.transferPairId == pairId).toList();
+    final oldLegs = current.where((t) => t.transferPairId == pairId).toList();
 
     for (final leg in oldLegs) {
       await repo.delete(leg.id);
@@ -278,7 +284,7 @@ class ActualTransactionsNotifier
     final current = state.value ?? [];
     state = AsyncData([
       for (final item in current)
-        if (item.id == tx.id) tx else item
+        if (item.id == tx.id) tx else item,
     ]);
   }
 
@@ -297,8 +303,7 @@ class ActualTransactionsNotifier
 
     if (tx.transferPairId != null) {
       final pairId = tx.transferPairId!;
-      final legs =
-          current.where((t) => t.transferPairId == pairId).toList();
+      final legs = current.where((t) => t.transferPairId == pairId).toList();
       for (final leg in legs) {
         await repo.delete(leg.id);
       }
@@ -331,10 +336,63 @@ class ActualTransactionsNotifier
   }
 }
 
-final actualTransactionsProvider = AsyncNotifierProvider<
-    ActualTransactionsNotifier, List<ActualTransaction>>(
-  ActualTransactionsNotifier.new,
-);
+final actualTransactionsProvider =
+    AsyncNotifierProvider<ActualTransactionsNotifier, List<ActualTransaction>>(
+      ActualTransactionsNotifier.new,
+    );
+
+final actualTemplateRepositoryProvider = Provider<ActualTemplateRepository>((
+  ref,
+) {
+  return ActualTemplateRepository();
+  // If your repo takes DatabaseHelper:
+  // return ActualTemplateRepository(ref.watch(databaseHelperProvider));
+});
+
+final actualTemplatesProvider =
+    AsyncNotifierProvider<ActualTemplatesNotifier, List<ActualTemplate>>(
+      ActualTemplatesNotifier.new,
+    );
+
+class ActualTemplatesNotifier extends AsyncNotifier<List<ActualTemplate>> {
+  @override
+  Future<List<ActualTemplate>> build() {
+    return ref.watch(actualTemplateRepositoryProvider).getAll();
+  }
+
+  Future<void> refresh() async {
+    state = const AsyncLoading();
+    state = AsyncData(
+      await ref.read(actualTemplateRepositoryProvider).getAll(),
+    );
+  }
+
+  Future<void> add({
+    required String name,
+    required String description,
+    required double amount,
+    required TransactionType type,
+    required String categoryId,
+    required String accountId,
+  }) async {
+    await ref
+        .read(actualTemplateRepositoryProvider)
+        .create(
+          name: name,
+          description: description,
+          amount: amount,
+          type: type,
+          categoryId: categoryId,
+          accountId: accountId,
+        );
+    await refresh();
+  }
+
+  Future<void> remove(String id) async {
+    await ref.read(actualTemplateRepositoryProvider).delete(id);
+    await refresh();
+  }
+}
 
 // ========== PROJECTION ENGINE ==========
 
@@ -345,57 +403,48 @@ final projectionServiceProvider = Provider<ProjectionService>((ref) {
 DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
 /// Session overrides; hydrated from settings when Projection opens.
-final projectionLookbackModeProvider =
-    StateProvider<ProjectionLookbackMode>(
+final projectionLookbackModeProvider = StateProvider<ProjectionLookbackMode>(
   (ref) => ProjectionLookbackMode.monthStart,
 );
 
-final projectionHorizonModeProvider =
-    StateProvider<ProjectionHorizonMode>(
+final projectionHorizonModeProvider = StateProvider<ProjectionHorizonMode>(
   (ref) => ProjectionHorizonMode.eom,
 );
 
-final projectionCustomStartProvider =
-    StateProvider<DateTime?>((ref) => null);
+final projectionCustomStartProvider = StateProvider<DateTime?>((ref) => null);
 
-final projectionCustomEndProvider =
-    StateProvider<DateTime?>((ref) => null);
+final projectionCustomEndProvider = StateProvider<DateTime?>((ref) => null);
 
 /// Wide expand to resolve last/next pay anchors.
 final payAnchorOccurrencesProvider =
     Provider<AsyncValue<List<ProjectionOccurrence>>>((ref) {
-  final templatesAsync = ref.watch(projectedTransactionsProvider);
-  final service = ref.watch(projectionServiceProvider);
-  final today = _dateOnly(DateTime.now());
+      final templatesAsync = ref.watch(projectedTransactionsProvider);
+      final service = ref.watch(projectionServiceProvider);
+      final today = _dateOnly(DateTime.now());
 
-  return templatesAsync.whenData((templates) {
-    return service.expand(
-      templates: templates,
-      start: today.subtract(const Duration(days: 400)),
-      end: today.add(const Duration(days: 400)),
-    );
-  });
-});
+      return templatesAsync.whenData((templates) {
+        return service.expand(
+          templates: templates,
+          start: today.subtract(const Duration(days: 400)),
+          end: today.add(const Duration(days: 400)),
+        );
+      });
+    });
 
 final canUseLastPayProvider = Provider<bool>((ref) {
   final today = _dateOnly(DateTime.now());
-  final payOcc =
-      ref.watch(payAnchorOccurrencesProvider).valueOrNull ?? [];
+  final payOcc = ref.watch(payAnchorOccurrencesProvider).valueOrNull ?? [];
   return payOcc.any(
     (o) =>
-        o.type == TransactionType.income &&
-        !_dateOnly(o.date).isAfter(today),
+        o.type == TransactionType.income && !_dateOnly(o.date).isAfter(today),
   );
 });
 
 final canUseNextPayProvider = Provider<bool>((ref) {
   final today = _dateOnly(DateTime.now());
-  final payOcc =
-      ref.watch(payAnchorOccurrencesProvider).valueOrNull ?? [];
+  final payOcc = ref.watch(payAnchorOccurrencesProvider).valueOrNull ?? [];
   return payOcc.any(
-    (o) =>
-        o.type == TransactionType.income &&
-        _dateOnly(o.date).isAfter(today),
+    (o) => o.type == TransactionType.income && _dateOnly(o.date).isAfter(today),
   );
 });
 
@@ -405,14 +454,14 @@ final projectionRangeProvider = Provider<DateTimeRange>((ref) {
   final horizonMode = ref.watch(projectionHorizonModeProvider);
   final customStart = ref.watch(projectionCustomStartProvider);
   final customEnd = ref.watch(projectionCustomEndProvider);
-  final payOcc =
-      ref.watch(payAnchorOccurrencesProvider).valueOrNull ?? [];
+  final payOcc = ref.watch(payAnchorOccurrencesProvider).valueOrNull ?? [];
 
-  final incomes = payOcc
-      .where((o) => o.type == TransactionType.income)
-      .map((o) => _dateOnly(o.date))
-      .toList()
-    ..sort();
+  final incomes =
+      payOcc
+          .where((o) => o.type == TransactionType.income)
+          .map((o) => _dateOnly(o.date))
+          .toList()
+        ..sort();
 
   DateTime start;
   switch (lookbackMode) {
@@ -421,9 +470,7 @@ final projectionRangeProvider = Provider<DateTimeRange>((ref) {
       break;
     case ProjectionLookbackMode.lastPay:
       final past = incomes.where((d) => !d.isAfter(today)).toList();
-      start = past.isEmpty
-          ? DateTime(today.year, today.month, 1)
-          : past.last;
+      start = past.isEmpty ? DateTime(today.year, today.month, 1) : past.last;
       break;
     case ProjectionLookbackMode.custom:
       start = customStart != null
@@ -465,8 +512,7 @@ bool projectionRangeHydrated = false;
 void applyProjectionRangeFromSettings(Ref ref, AppSettings settings) {
   ref.read(projectionLookbackModeProvider.notifier).state =
       settings.lookbackMode;
-  ref.read(projectionHorizonModeProvider.notifier).state =
-      settings.horizonMode;
+  ref.read(projectionHorizonModeProvider.notifier).state = settings.horizonMode;
   ref.read(projectionCustomStartProvider.notifier).state =
       settings.customLookbackStart;
   ref.read(projectionCustomEndProvider.notifier).state =
@@ -487,21 +533,22 @@ final projectionRangeBootstrapProvider = Provider<void>((ref) {
 
 final projectionOccurrencesProvider =
     Provider<AsyncValue<List<ProjectionOccurrence>>>((ref) {
-  final templatesAsync = ref.watch(projectedTransactionsProvider);
-  final range = ref.watch(projectionRangeProvider);
-  final service = ref.watch(projectionServiceProvider);
+      final templatesAsync = ref.watch(projectedTransactionsProvider);
+      final range = ref.watch(projectionRangeProvider);
+      final service = ref.watch(projectionServiceProvider);
 
-  return templatesAsync.whenData((templates) {
-    return service.expand(
-      templates: templates,
-      start: range.start,
-      end: range.end,
-    );
-  });
-});
+      return templatesAsync.whenData((templates) {
+        return service.expand(
+          templates: templates,
+          start: range.start,
+          end: range.end,
+        );
+      });
+    });
 
-final paidOccurrenceRepositoryProvider =
-    Provider<PaidOccurrenceRepository>((ref) {
+final paidOccurrenceRepositoryProvider = Provider<PaidOccurrenceRepository>((
+  ref,
+) {
   return PaidOccurrenceRepository(ref.watch(databaseHelperProvider));
 });
 
@@ -510,25 +557,32 @@ final paidOccurrenceIdsProvider = FutureProvider<Set<String>>((ref) async {
   return repo.getAllPaidIds();
 });
 
-final categoryBudgetRepositoryProvider =
-    Provider<CategoryBudgetRepository>((ref) {
+final categoryBudgetRepositoryProvider = Provider<CategoryBudgetRepository>((
+  ref,
+) {
   return CategoryBudgetRepository(ref.watch(databaseHelperProvider));
 });
 
 final categoryBudgetsProvider =
     FutureProvider.family<Map<String, double>, String>((ref, yearMonth) async {
-  final repo = ref.watch(categoryBudgetRepositoryProvider);
-  return repo.getBudgetsForMonth(yearMonth);
-});
+      final repo = ref.watch(categoryBudgetRepositoryProvider);
+      return repo.getBudgetsForMonth(yearMonth);
+    });
 
-final currentMonthCategoryBudgetsProvider =
-    FutureProvider<Map<String, double>>((ref) async {
-  final ym = CategoryBudgetRepository.yearMonthKey(DateTime.now());
-  return ref.watch(categoryBudgetsProvider(ym).future);
-});
-
-final accountBalancesProvider =
-    Provider<AsyncValue<Map<String, double>>>((ref) {
+final currentMonthCategoryBudgetsProvider = FutureProvider<Map<String, double>>(
+  (ref) async {
+    final ym = CategoryBudgetRepository.yearMonthKey(DateTime.now());
+    return ref.watch(categoryBudgetsProvider(ym).future);
+  },
+);
+final calculatorPresetRepositoryProvider = Provider<CalculatorPresetRepository>(
+  (ref) {
+    return CalculatorPresetRepository(ref.watch(databaseHelperProvider));
+  },
+);
+final accountBalancesProvider = Provider<AsyncValue<Map<String, double>>>((
+  ref,
+) {
   final accountsAsync = ref.watch(accountsProvider);
   final txAsync = ref.watch(actualTransactionsProvider);
 
@@ -570,8 +624,8 @@ final accountBalancesProvider =
 
 final skippedOccurrenceRepositoryProvider =
     Provider<SkippedOccurrenceRepository>((ref) {
-  return SkippedOccurrenceRepository(DatabaseHelper.instance);
-});
+      return SkippedOccurrenceRepository(DatabaseHelper.instance);
+    });
 
 final skippedOccurrenceIdsProvider = FutureProvider<Set<String>>((ref) async {
   final repo = ref.watch(skippedOccurrenceRepositoryProvider);
@@ -585,14 +639,13 @@ final analyticsMonthProvider = StateProvider<DateTime>((ref) {
 
 enum ActualsRangeMode { thisMonth, lastMonth, custom }
 
-final actualsRangeModeProvider =
-    StateProvider<ActualsRangeMode>((ref) => ActualsRangeMode.thisMonth);
+final actualsRangeModeProvider = StateProvider<ActualsRangeMode>(
+  (ref) => ActualsRangeMode.thisMonth,
+);
 
-final actualsCustomRangeProvider =
-    StateProvider<DateTimeRange?>((ref) => null);
+final actualsCustomRangeProvider = StateProvider<DateTimeRange?>((ref) => null);
 
-DateTime _actualsDateOnly(DateTime d) =>
-    DateTime(d.year, d.month, d.day);
+DateTime _actualsDateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
 final actualsDashboardRangeProvider = Provider<DateTimeRange>((ref) {
   final mode = ref.watch(actualsRangeModeProvider);
@@ -620,4 +673,3 @@ final actualsDashboardRangeProvider = Provider<DateTimeRange>((ref) {
       return DateTimeRange(start: start, end: end);
   }
 });
-

@@ -13,7 +13,6 @@ import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/projected_transaction.dart';
 import '../providers/app_providers.dart';
 import '../widgets/paste_transactions_dialog.dart';
-import '../../domain/entities/account.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -46,15 +45,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return settingsAsync.when(
       data: (settings) {
         final showBudgetDefaults = settings.appMode != AppMode.actuals;
-        final accounts = ref.watch(accountsProvider).valueOrNull ?? <Account>[];
-        Account? untracked;
-        for (final a in accounts) {
-          if (a.isUntracked) {
-            untracked = a;
-            break;
-          }
-        }
-
         return SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(32, 8, 32, 40),
           child: Column(
@@ -92,24 +82,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ),
                   ],
-                ),
-              ),
-
-              const SizedBox(height: 28),
-              // ===== Untracked (outside this budget) =====
-              const _SectionTitle(title: 'Untracked transfers'),
-              const SizedBox(height: 12),
-              _SettingsCard(
-                child: _SettingRow(
-                  icon: Icons.public_off_rounded,
-                  title: untracked?.name ?? Account.defaultUntrackedName,
-                  subtitle:
-                      'Money to/from places you don’t track here. '
-                      'Not income or expense · not on Accounts. Tap Rename.',
-                  trailing: _ValueButton(
-                    value: 'Rename',
-                    onTap: () => _renameUntracked(untracked?.name),
-                  ),
                 ),
               ),
 
@@ -324,6 +296,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         ),
                       ),
                     ),
+                    const Divider(height: 1),
+                    _SettingRow(
+                      icon: Icons.label_outline_rounded,
+                      title: 'Show Fixed / Variable',
+                      subtitle: 'F/V badges on lists and mix bars on the Projection dashboard',
+                      trailing: Switch(
+                        value: settings.showCostNature,
+                        activeThumbColor: colors.primary,
+                        onChanged: (value) =>
+                            _save(settings.copyWith(showCostNature: value)),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -388,7 +372,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
               Center(
                 child: Text(
-                  'Budget App  •  v0.2.0',
+                  'Budget App  •  v0.2.2',
                   style: TextStyle(fontSize: 13, color: colors.textSecondary),
                 ),
               ),
@@ -805,47 +789,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final next = order[(i + 1) % order.length];
     await _save(settings.copyWith(horizonMode: next));
     ref.read(projectionHorizonModeProvider.notifier).state = next;
-  }
-
-  Future<void> _renameUntracked(String? currentName) async {
-    final controller = TextEditingController(
-      text: currentName ?? Account.defaultUntrackedName,
-    );
-
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Rename Untracked'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: 'Name',
-              hintText: 'e.g. Kids 529, Brokerage',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (ok == true) {
-      await ref
-          .read(accountRepositoryProvider)
-          .renameUntracked(controller.text);
-      ref.invalidate(accountsProvider);
-    }
-    controller.dispose();
   }
 
   Future<void> _save(AppSettings updated) async {

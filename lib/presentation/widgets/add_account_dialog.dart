@@ -9,7 +9,10 @@ import '../providers/app_providers.dart';
 class AddAccountDialog extends ConsumerStatefulWidget {
   final Account? existing;
 
-  const AddAccountDialog({super.key, this.existing});
+  /// When non-null on create, pre-selects type (e.g. untracked from Settings).
+  final AccountType? initialType;
+
+  const AddAccountDialog({super.key, this.existing, this.initialType});
 
   @override
   ConsumerState<AddAccountDialog> createState() => _AddAccountDialogState();
@@ -24,6 +27,7 @@ class _AddAccountDialogState extends ConsumerState<AddAccountDialog> {
   late String _iconKey;
 
   bool get isEditing => widget.existing != null;
+  bool get isUntracked => _type == AccountType.untracked;
 
   @override
   void initState() {
@@ -35,6 +39,7 @@ class _AddAccountDialogState extends ConsumerState<AddAccountDialog> {
       _balanceController.text = a.startingBalance.toStringAsFixed(2);
       _iconKey = a.iconKey;
     } else {
+      _type = widget.initialType ?? AccountType.asset;
       _balanceController.text = '0.00';
       _iconKey = Account.defaultIconFor(_type);
     }
@@ -93,6 +98,10 @@ class _AddAccountDialogState extends ConsumerState<AddAccountDialog> {
                         value: AccountType.liability,
                         child: Text('Liability (credit card, loan)'),
                       ),
+                      DropdownMenuItem(
+                        value: AccountType.untracked,
+                        child: Text('Untracked (external)'),
+                      ),
                     ],
                     onChanged: (v) {
                       if (v == null) return;
@@ -148,27 +157,42 @@ class _AddAccountDialogState extends ConsumerState<AddAccountDialog> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _balanceController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                      signed: true,
+                  if (!isUntracked) ...[
+                    TextFormField(
+                      controller: _balanceController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                        signed: true,
+                      ),
+                      decoration: _inputDecoration('Starting balance', colors),
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return 'Required';
+                        if (double.tryParse(v.trim()) == null) {
+                          return 'Enter a valid number';
+                        }
+                        return null;
+                      },
                     ),
-                    decoration: _inputDecoration('Starting balance', colors),
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'Required';
-                      if (double.tryParse(v.trim()) == null) {
-                        return 'Enter a valid number';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Liabilities can be entered as negative amounts. '
-                    'Display color follows the sign (negative = red).',
-                    style: TextStyle(fontSize: 12, color: colors.textSecondary),
-                  ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Liabilities can be entered as negative amounts. '
+                      'Display color follows the sign (negative = red).',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ] else ...[
+                    Text(
+                      'External accounts have no balance in this budget. '
+                      'Use transfers to move money to or from them. '
+                      'They are excluded from net worth and the Accounts list.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 28),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -225,7 +249,9 @@ class _AddAccountDialogState extends ConsumerState<AddAccountDialog> {
 
     final repo = ref.read(accountRepositoryProvider);
     final name = _nameController.text.trim();
-    final balance = double.parse(_balanceController.text.trim());
+    final balance = isUntracked
+        ? 0.0
+        : double.parse(_balanceController.text.trim());
 
     String accountId;
 

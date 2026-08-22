@@ -25,9 +25,24 @@ class AccountIcons {
     'home',
     'handyman',
   ];
+  static const untrackedKeys = [
+    'public_off',
+    'account_balance_wallet',
+    'savings',
+    'trending_up',
+    'payments',
+  ];
 
-  static List<String> keysFor(AccountType type) =>
-      type == AccountType.asset ? assetKeys : liabilityKeys;
+  static List<String> keysFor(AccountType type) {
+    switch (type) {
+      case AccountType.asset:
+        return assetKeys;
+      case AccountType.liability:
+        return liabilityKeys;
+      case AccountType.untracked:
+        return untrackedKeys;
+    }
+  }
 
   static IconData data(String key) {
     switch (key) {

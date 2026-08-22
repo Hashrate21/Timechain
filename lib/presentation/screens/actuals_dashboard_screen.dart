@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/money_format.dart';
 import '../../domain/entities/actual_transaction.dart';
@@ -22,8 +23,18 @@ class _ActualsDashboardScreenState
   _InsightWindow _window = _InsightWindow.month;
 
   static const _monthShortNames = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 
   String _fmtRange(DateTime a, DateTime b) {
@@ -34,7 +45,8 @@ class _ActualsDashboardScreenState
 
   Future<void> _pickCustomRange(BuildContext context) async {
     final now = DateTime.now();
-    final initial = ref.read(actualsCustomRangeProvider) ??
+    final initial =
+        ref.read(actualsCustomRangeProvider) ??
         DateTimeRange(
           start: DateTime(now.year, now.month, 1),
           end: DateTime(now.year, now.month + 1, 0),
@@ -47,8 +59,7 @@ class _ActualsDashboardScreenState
     );
     if (picked == null) return;
     ref.read(actualsCustomRangeProvider.notifier).state = picked;
-    ref.read(actualsRangeModeProvider.notifier).state =
-        ActualsRangeMode.custom;
+    ref.read(actualsRangeModeProvider.notifier).state = ActualsRangeMode.custom;
   }
 
   @override
@@ -74,6 +85,9 @@ class _ActualsDashboardScreenState
               data: (templates) {
                 return balancesAsync.when(
                   data: (balances) {
+                    final trackedAccounts = accounts
+                        .where((a) => !a.isUntracked)
+                        .toList();
                     final now = DateTime.now();
                     final today = DateTime(now.year, now.month, now.day);
                     final monthStart = DateTime(now.year, now.month, 1);
@@ -96,21 +110,15 @@ class _ActualsDashboardScreenState
                     };
 
                     final settings = settingsAsync.valueOrNull;
-                    final isCombined =
-                        settings?.appMode == AppMode.combined;
+                    final isCombined = settings?.appMode == AppMode.combined;
                     final showPlan = isCombined;
                     final s = settings ?? const AppSettings();
-                    String money(double v) =>
-                        formatMoneyFromSettings(v, s);
+                    String money(double v) => formatMoneyFromSettings(v, s);
 
                     double rangeIncome = 0;
                     double rangeExpense = 0;
                     for (final t in transactions) {
-                      final d = DateTime(
-                        t.date.year,
-                        t.date.month,
-                        t.date.day,
-                      );
+                      final d = DateTime(t.date.year, t.date.month, t.date.day);
                       if (d.isBefore(rangeStart) || d.isAfter(rangeEnd)) {
                         continue;
                       }
@@ -143,7 +151,7 @@ class _ActualsDashboardScreenState
                     }
 
                     double netWorth = 0;
-                    for (final a in accounts) {
+                    for (final a in trackedAccounts) {
                       netWorth += balances[a.id] ?? a.startingBalance;
                     }
 
@@ -165,8 +173,7 @@ class _ActualsDashboardScreenState
                       money: money,
                     );
 
-                    final monthChipLabel =
-                        _monthShortNames[now.month - 1];
+                    final monthChipLabel = _monthShortNames[now.month - 1];
 
                     return SingleChildScrollView(
                       padding: const EdgeInsets.fromLTRB(32, 8, 32, 32),
@@ -185,32 +192,31 @@ class _ActualsDashboardScreenState
                             children: [
                               _WindowChip(
                                 label: 'This month',
-                                selected: rangeMode ==
-                                    ActualsRangeMode.thisMonth,
+                                selected:
+                                    rangeMode == ActualsRangeMode.thisMonth,
                                 onTap: () {
                                   ref
-                                      .read(actualsRangeModeProvider
-                                          .notifier)
-                                      .state = ActualsRangeMode.thisMonth;
+                                      .read(actualsRangeModeProvider.notifier)
+                                      .state = ActualsRangeMode
+                                      .thisMonth;
                                 },
                               ),
                               const SizedBox(width: 6),
                               _WindowChip(
                                 label: 'Last month',
-                                selected: rangeMode ==
-                                    ActualsRangeMode.lastMonth,
+                                selected:
+                                    rangeMode == ActualsRangeMode.lastMonth,
                                 onTap: () {
                                   ref
-                                      .read(actualsRangeModeProvider
-                                          .notifier)
-                                      .state = ActualsRangeMode.lastMonth;
+                                      .read(actualsRangeModeProvider.notifier)
+                                      .state = ActualsRangeMode
+                                      .lastMonth;
                                 },
                               ),
                               const SizedBox(width: 6),
                               _WindowChip(
                                 label: 'Custom',
-                                selected: rangeMode ==
-                                    ActualsRangeMode.custom,
+                                selected: rangeMode == ActualsRangeMode.custom,
                                 onTap: () => _pickCustomRange(context),
                               ),
                             ],
@@ -264,9 +270,9 @@ class _ActualsDashboardScreenState
                                   title: 'Recent Transactions',
                                   child: recentTop.isEmpty
                                       ? Padding(
-                                          padding:
-                                              const EdgeInsets.symmetric(
-                                                  vertical: 20),
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 20,
+                                          ),
                                           child: Text(
                                             'No transactions yet',
                                             style: TextStyle(
@@ -276,9 +282,11 @@ class _ActualsDashboardScreenState
                                         )
                                       : Column(
                                           children: recentTop.map((t) {
-                                            final isIncome = t.type ==
+                                            final isIncome =
+                                                t.type ==
                                                 TransactionType.income;
-                                            final isTransfer = t.type ==
+                                            final isTransfer =
+                                                t.type ==
                                                 TransactionType.transfer;
                                             final dateStr =
                                                 '${t.date.month.toString().padLeft(2, '0')}/${t.date.day.toString().padLeft(2, '0')}';
@@ -286,26 +294,21 @@ class _ActualsDashboardScreenState
                                             final String amountText;
                                             final Color amountColor;
                                             if (isTransfer) {
-                                              amountText =
-                                                  money(t.amount);
-                                              amountColor =
-                                                  colors.textPrimary;
+                                              amountText = money(t.amount);
+                                              amountColor = colors.textPrimary;
                                             } else if (isIncome) {
                                               amountText =
                                                   '+${money(t.amount)}';
-                                              amountColor =
-                                                  colors.successColor;
+                                              amountColor = colors.successColor;
                                             } else {
-                                              amountText =
-                                                  money(-t.amount);
-                                              amountColor =
-                                                  colors.dangerColor;
+                                              amountText = money(-t.amount);
+                                              amountColor = colors.dangerColor;
                                             }
 
                                             return Padding(
-                                              padding:
-                                                  const EdgeInsets.only(
-                                                      bottom: 14),
+                                              padding: const EdgeInsets.only(
+                                                bottom: 14,
+                                              ),
                                               child: Row(
                                                 children: [
                                                   SizedBox(
@@ -322,11 +325,9 @@ class _ActualsDashboardScreenState
                                                   Expanded(
                                                     child: Text(
                                                       t.name,
-                                                      style:
-                                                          const TextStyle(
+                                                      style: const TextStyle(
                                                         fontWeight:
-                                                            FontWeight
-                                                                .w500,
+                                                            FontWeight.w500,
                                                       ),
                                                     ),
                                                   ),
@@ -376,8 +377,7 @@ class _ActualsDashboardScreenState
                                             _InsightLine(
                                               data: _netInsight(
                                                 net,
-                                                plannedIncome -
-                                                    plannedExpense,
+                                                plannedIncome - plannedExpense,
                                                 money,
                                               ),
                                             ),
@@ -397,72 +397,73 @@ class _ActualsDashboardScreenState
                                         children: [
                                           _WindowChip(
                                             label: monthChipLabel,
-                                            selected: _window ==
-                                                _InsightWindow.month,
-                                            onTap: () => setState(() =>
-                                                _window =
-                                                    _InsightWindow.month),
+                                            selected:
+                                                _window == _InsightWindow.month,
+                                            onTap: () => setState(
+                                              () => _window =
+                                                  _InsightWindow.month,
+                                            ),
                                           ),
                                           const SizedBox(width: 6),
                                           _WindowChip(
                                             label: '14',
-                                            selected: _window ==
+                                            selected:
+                                                _window ==
                                                 _InsightWindow.days14,
-                                            onTap: () => setState(() =>
-                                                _window =
-                                                    _InsightWindow.days14),
+                                            onTap: () => setState(
+                                              () => _window =
+                                                  _InsightWindow.days14,
+                                            ),
                                           ),
                                           const SizedBox(width: 6),
                                           _WindowChip(
                                             label: '30',
-                                            selected: _window ==
+                                            selected:
+                                                _window ==
                                                 _InsightWindow.days30,
-                                            onTap: () => setState(() =>
-                                                _window =
-                                                    _InsightWindow.days30),
+                                            onTap: () => setState(
+                                              () => _window =
+                                                  _InsightWindow.days30,
+                                            ),
                                           ),
                                         ],
                                       ),
-                                      child: (snapshot.mostOften == null &&
-                                              snapshot.highestRepeat ==
-                                                  null)
+                                      child:
+                                          (snapshot.mostOften == null &&
+                                              snapshot.highestRepeat == null)
                                           ? Text(
                                               'No expenses in this period',
                                               style: TextStyle(
                                                 fontSize: 13,
-                                                color:
-                                                    colors.textSecondary,
+                                                color: colors.textSecondary,
                                               ),
                                             )
                                           : Column(
                                               children: [
-                                                if (snapshot.mostOften !=
-                                                    null)
+                                                if (snapshot.mostOften != null)
                                                   _SnapshotLine(
                                                     label: 'Most often',
                                                     name: snapshot
-                                                        .mostOften!.name,
-                                                    count: snapshot
-                                                        .mostOften!.count,
-                                                    total: money(snapshot
                                                         .mostOften!
-                                                        .total),
-                                                    nameColor:
-                                                        colors.primary,
+                                                        .name,
+                                                    count: snapshot
+                                                        .mostOften!
+                                                        .count,
+                                                    total: money(
+                                                      snapshot.mostOften!.total,
+                                                    ),
+                                                    nameColor: colors.primary,
                                                     itemsTooltip: snapshot
                                                         .mostOften!
                                                         .itemsTooltip,
-                                                    lineTooltip:
-                                                        'Category with the most expense transactions in this period',
+                                                    lineTooltip: 'Category with the most expense transactions in this period',
                                                   ),
                                                 if (snapshot.mostOften !=
                                                         null &&
                                                     snapshot.highestRepeat !=
                                                         null)
-                                                  const SizedBox(
-                                                      height: 12),
-                                                if (snapshot
-                                                        .highestRepeat !=
+                                                  const SizedBox(height: 12),
+                                                if (snapshot.highestRepeat !=
                                                     null)
                                                   _SnapshotLine(
                                                     label: 'Highest spend',
@@ -472,16 +473,16 @@ class _ActualsDashboardScreenState
                                                     count: snapshot
                                                         .highestRepeat!
                                                         .count,
-                                                    total: money(snapshot
-                                                        .highestRepeat!
-                                                        .total),
-                                                    nameColor:
-                                                        colors.primary,
+                                                    total: money(
+                                                      snapshot
+                                                          .highestRepeat!
+                                                          .total,
+                                                    ),
+                                                    nameColor: colors.primary,
                                                     itemsTooltip: snapshot
                                                         .highestRepeat!
                                                         .itemsTooltip,
-                                                    lineTooltip:
-                                                        'Highest total among categories with 2+ expenses (excludes one-off bills)',
+                                                    lineTooltip: 'Highest total among categories with 2+ expenses (excludes one-off bills)',
                                                   ),
                                               ],
                                             ),
@@ -499,25 +500,25 @@ class _ActualsDashboardScreenState
                                               : colors.dangerColor,
                                         ),
                                       ),
-                                      child: accounts.isEmpty
+                                      child: trackedAccounts.isEmpty
                                           ? Text(
                                               'No accounts yet',
                                               style: TextStyle(
-                                                color:
-                                                    colors.textSecondary,
+                                                color: colors.textSecondary,
                                               ),
                                             )
                                           : Column(
-                                              children:
-                                                  accounts.map((a) {
+                                              children: trackedAccounts.map((
+                                                a,
+                                              ) {
                                                 final live =
                                                     balances[a.id] ??
-                                                        a.startingBalance;
+                                                    a.startingBalance;
                                                 return Padding(
                                                   padding:
-                                                      const EdgeInsets
-                                                          .only(
-                                                          bottom: 12),
+                                                      const EdgeInsets.only(
+                                                        bottom: 12,
+                                                      ),
                                                   child: Row(
                                                     mainAxisAlignment:
                                                         MainAxisAlignment
@@ -528,13 +529,12 @@ class _ActualsDashboardScreenState
                                                         money(live),
                                                         style: TextStyle(
                                                           fontWeight:
-                                                              FontWeight
-                                                                  .w600,
+                                                              FontWeight.w600,
                                                           color: live >= 0
                                                               ? colors
-                                                                  .successColor
+                                                                    .successColor
                                                               : colors
-                                                                  .dangerColor,
+                                                                    .dangerColor,
                                                         ),
                                                       ),
                                                     ],
@@ -557,13 +557,11 @@ class _ActualsDashboardScreenState
                   error: (e, s) => Center(child: Text('Error: $e')),
                 );
               },
-              loading: () =>
-                  const Center(child: CircularProgressIndicator()),
+              loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, s) => Center(child: Text('Error: $e')),
             );
           },
-          loading: () =>
-              const Center(child: CircularProgressIndicator()),
+          loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, s) => Center(child: Text('Error: $e')),
         );
       },
@@ -645,8 +643,7 @@ class _ActualsDashboardScreenState
     }
 
     return _SpendingSnapshot(
-      mostOften:
-          mostOften?.withTooltip(money),
+      mostOften: mostOften?.withTooltip(money),
       highestRepeat: highestRepeat?.withTooltip(money),
     );
   }
@@ -785,10 +782,7 @@ class _SnapshotLine extends StatelessWidget {
                   ),
                 ),
               ),
-              Text(
-                '$count',
-                style: TextStyle(fontSize: 13, color: muted),
-              ),
+              Text('$count', style: TextStyle(fontSize: 13, color: muted)),
               const SizedBox(width: 12),
               Text(
                 total,
@@ -828,7 +822,9 @@ _InsightData _incomeInsight(
 ) {
   if (planned <= 0) {
     return const _InsightData(
-        prefix: 'Income — no projected amount', suffix: '');
+      prefix: 'Income — no projected amount',
+      suffix: '',
+    );
   }
   final d = actual - planned;
   if (d.abs() < 0.5) {
@@ -857,12 +853,13 @@ _InsightData _expenseInsight(
 ) {
   if (planned <= 0) {
     return const _InsightData(
-        prefix: 'Expenses — no projected amount', suffix: '');
+      prefix: 'Expenses — no projected amount',
+      suffix: '',
+    );
   }
   final d = actual - planned;
   if (d.abs() < 0.5) {
-    return const _InsightData(
-        prefix: 'Expenses on projection', suffix: '');
+    return const _InsightData(prefix: 'Expenses on projection', suffix: '');
   }
   if (d > 0) {
     return _InsightData(
@@ -976,10 +973,7 @@ class _SummaryCard extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             title,
-            style: TextStyle(
-              fontSize: 13,
-              color: colors.textSecondary,
-            ),
+            style: TextStyle(fontSize: 13, color: colors.textSecondary),
           ),
           const SizedBox(height: 4),
           Text(
@@ -1026,10 +1020,7 @@ class _SectionCard extends StatelessWidget {
 
     Widget titleWidget = Text(
       title,
-      style: const TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w600,
-      ),
+      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
     );
 
     if (titleTooltip != null) {
@@ -1041,11 +1032,7 @@ class _SectionCard extends StatelessWidget {
           children: [
             titleWidget,
             const SizedBox(width: 6),
-            Icon(
-              Icons.info_outline,
-              size: 14,
-              color: colors.textSecondary,
-            ),
+            Icon(Icons.info_outline, size: 14, color: colors.textSecondary),
           ],
         ),
       );
@@ -1064,10 +1051,7 @@ class _SectionCard extends StatelessWidget {
           Row(
             children: [
               titleWidget,
-              if (trailing != null) ...[
-                const Spacer(),
-                trailing!,
-              ],
+              if (trailing != null) ...[const Spacer(), trailing!],
             ],
           ),
           const SizedBox(height: 16),

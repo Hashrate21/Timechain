@@ -27,8 +27,10 @@ class _AddProjectedDialogState extends ConsumerState<AddProjectedDialog> {
   late DateTime _startDate;
   DateTime? _endDate;
   String? _selectedCategoryId;
+  late CostNature _costNature;
 
   bool get isEditing => widget.existing != null;
+  bool get isIncome => widget.type == TransactionType.income;
 
   @override
   void initState() {
@@ -43,11 +45,13 @@ class _AddProjectedDialogState extends ConsumerState<AddProjectedDialog> {
       _startDate = tx.startDate;
       _endDate = tx.recurrenceEnd;
       _selectedCategoryId = tx.categoryId;
+      _costNature = tx.costNature;
     } else {
       _recurrence = RecurrenceType.monthly;
       _secondDay = 15;
       _startDate = DateTime.now();
       _endDate = null;
+      _costNature = isIncome ? CostNature.fixed : CostNature.variable;
     }
   }
 
@@ -64,7 +68,6 @@ class _AddProjectedDialogState extends ConsumerState<AddProjectedDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
-    final isIncome = widget.type == TransactionType.income;
     final categoriesAsync = ref.watch(categoriesProvider);
 
     return Dialog(
@@ -96,30 +99,94 @@ class _AddProjectedDialogState extends ConsumerState<AddProjectedDialog> {
                   ),
                   const SizedBox(height: 24),
 
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: _inputDecoration('Name', colors),
-                    validator: (v) =>
-                        v == null || v.isEmpty ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 16),
-
-                  TextFormField(
-                    controller: _amountController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
+                  // Name
+                  Tooltip(
+                    message: 'Name that appears on the Projection timeline. Rent, Mortgage, Groceries, Daycare, etc.',
+                    waitDuration: const Duration(milliseconds: 500),
+                    child: TextFormField(
+                      controller: _nameController,
+                      decoration: _inputDecoration('Name', colors),
+                      validator: (v) =>
+                          v == null || v.isEmpty ? 'Required' : null,
                     ),
-                    decoration: _inputDecoration('Amount', colors),
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return 'Required';
-                      if (double.tryParse(v) == null) {
-                        return 'Enter a valid number';
-                      }
-                      return null;
-                    },
                   ),
                   const SizedBox(height: 16),
 
+                  // Amount
+                  Tooltip(
+                    message: 'Amount for each occurrence in the series.',
+                    waitDuration: const Duration(milliseconds: 500),
+                    child: TextFormField(
+                      controller: _amountController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: _inputDecoration('Amount', colors),
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'Required';
+                        if (double.tryParse(v) == null) {
+                          return 'Enter a valid number';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Cost type (Fixed / Variable)
+                  Tooltip(
+                    message:
+                        'Fixed = known/locked amount (rent, loan, salary). '
+                        'Variable = flexible estimate (groceries, dining).',
+                    waitDuration: const Duration(milliseconds: 500),
+                    child: Row(
+                      children: [
+                        Text(
+                          'Cost type',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: colors.border),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _CostNatureChip(
+                                label: 'Fixed',
+                                selected: _costNature == CostNature.fixed,
+                                onTap: () => setState(
+                                  () => _costNature = CostNature.fixed,
+                                ),
+                              ),
+                              Container(
+                                width: 1,
+                                height: 32,
+                                color: colors.border,
+                              ),
+                              _CostNatureChip(
+                                label: 'Variable',
+                                selected: _costNature == CostNature.variable,
+                                onTap: () => setState(
+                                  () => _costNature = CostNature.variable,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16), const SizedBox(height: 16),
+
+                  // Category
                   categoriesAsync.when(
                     data: (categories) {
                       final filtered = categories
@@ -130,22 +197,29 @@ class _AddProjectedDialogState extends ConsumerState<AddProjectedDialog> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            child: DropdownButtonFormField<String>(
-                              initialValue: _selectedCategoryId,
-                              decoration: _inputDecoration('Category', colors),
-                              items: filtered
-                                  .map(
-                                    (c) => DropdownMenuItem(
-                                      value: c.id,
-                                      child: Text(c.name),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (value) {
-                                setState(() => _selectedCategoryId = value);
-                              },
-                              validator: (v) =>
-                                  v == null ? 'Select a category' : null,
+                            child: Tooltip(
+                              message: 'Category used for budgets, analytics, and the timeline.',
+                              waitDuration: const Duration(milliseconds: 500),
+                              child: DropdownButtonFormField<String>(
+                                initialValue: _selectedCategoryId,
+                                decoration: _inputDecoration(
+                                  'Category',
+                                  colors,
+                                ),
+                                items: filtered
+                                    .map(
+                                      (c) => DropdownMenuItem(
+                                        value: c.id,
+                                        child: Text(c.name),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (value) {
+                                  setState(() => _selectedCategoryId = value);
+                                },
+                                validator: (v) =>
+                                    v == null ? 'Select a category' : null,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 4),
@@ -174,41 +248,50 @@ class _AddProjectedDialogState extends ConsumerState<AddProjectedDialog> {
                   ),
                   const SizedBox(height: 16),
 
-                  DropdownButtonFormField<RecurrenceType>(
-                    initialValue: _recurrence,
-                    decoration: _inputDecoration('Recurrence', colors),
-                    items: RecurrenceType.values
-                        .map(
-                          (r) => DropdownMenuItem(
-                            value: r,
-                            child: Text(_recurrenceLabel(r)),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() => _recurrence = value);
-                      }
-                    },
+                  // Recurrence
+                  Tooltip(
+                    message: 'How often this item repeats. One-time means a single occurrence on the Start Date.',
+                    waitDuration: const Duration(milliseconds: 500),
+                    child: DropdownButtonFormField<RecurrenceType>(
+                      initialValue: _recurrence,
+                      decoration: _inputDecoration('Recurrence', colors),
+                      items: RecurrenceType.values
+                          .map(
+                            (r) => DropdownMenuItem(
+                              value: r,
+                              child: Text(_recurrenceLabel(r)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => _recurrence = value);
+                        }
+                      },
+                    ),
                   ),
                   const SizedBox(height: 16),
 
                   if (_recurrence == RecurrenceType.twiceMonthly) ...[
-                    DropdownButtonFormField<int>(
-                      initialValue: _secondDay,
-                      decoration: _inputDecoration(
-                        'Second day of month',
-                        colors,
+                    Tooltip(
+                      message: 'Second day of the month for twice-monthly recurrence. The first day comes from the Start Date.',
+                      waitDuration: const Duration(milliseconds: 500),
+                      child: DropdownButtonFormField<int>(
+                        initialValue: _secondDay,
+                        decoration: _inputDecoration(
+                          'Second day of month',
+                          colors,
+                        ),
+                        items: List.generate(31, (i) => i + 1)
+                            .map(
+                              (d) =>
+                                  DropdownMenuItem(value: d, child: Text('$d')),
+                            )
+                            .toList(),
+                        onChanged: (v) {
+                          if (v != null) setState(() => _secondDay = v);
+                        },
                       ),
-                      items: List.generate(31, (i) => i + 1)
-                          .map(
-                            (d) =>
-                                DropdownMenuItem(value: d, child: Text('$d')),
-                          )
-                          .toList(),
-                      onChanged: (v) {
-                        if (v != null) setState(() => _secondDay = v);
-                      },
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -221,59 +304,69 @@ class _AddProjectedDialogState extends ConsumerState<AddProjectedDialog> {
                     const SizedBox(height: 16),
                   ],
 
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Start Date'),
-                    subtitle: Text(_fmt(_startDate)),
-                    trailing: const Icon(Icons.calendar_today_rounded),
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _startDate,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(2035),
-                      );
-                      if (picked != null) {
-                        setState(() {
-                          _startDate = picked;
-                          if (_endDate != null &&
-                              _endDate!.isBefore(_startDate)) {
-                            _endDate = null;
-                          }
-                        });
-                      }
-                    },
+                  // Start Date
+                  Tooltip(
+                    message: 'First occurrence date. For monthly/quarterly/yearly this also sets the day of the month the series repeats on.',
+                    waitDuration: const Duration(milliseconds: 500),
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Start Date'),
+                      subtitle: Text(_fmt(_startDate)),
+                      trailing: const Icon(Icons.calendar_today_rounded),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _startDate,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2035),
+                        );
+                        if (picked != null) {
+                          setState(() {
+                            _startDate = picked;
+                            if (_endDate != null &&
+                                _endDate!.isBefore(_startDate)) {
+                              _endDate = null;
+                            }
+                          });
+                        }
+                      },
+                    ),
                   ),
 
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('End Date (optional)'),
-                    subtitle: Text(
-                      _endDate == null ? 'No end — ongoing' : _fmt(_endDate!),
+                  // End Date
+                  Tooltip(
+                    message: 'Optional. Stops the series after this date. Use when an amount or schedule changes (ends the old series).',
+                    waitDuration: const Duration(milliseconds: 500),
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('End Date (optional)'),
+                      subtitle: Text(
+                        _endDate == null ? 'No end — ongoing' : _fmt(_endDate!),
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_endDate != null)
+                            IconButton(
+                              tooltip: 'Clear end date',
+                              icon: const Icon(Icons.clear, size: 20),
+                              onPressed: () => setState(() => _endDate = null),
+                            ),
+                          const Icon(Icons.event_busy_rounded),
+                        ],
+                      ),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _endDate ?? _startDate,
+                          firstDate: _startDate,
+                          lastDate: DateTime(2035),
+                        );
+                        if (picked != null) {
+                          setState(() => _endDate = picked);
+                        }
+                      },
                     ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (_endDate != null)
-                          IconButton(
-                            tooltip: 'Clear end date',
-                            icon: const Icon(Icons.clear, size: 20),
-                            onPressed: () => setState(() => _endDate = null),
-                          ),
-                        const Icon(Icons.event_busy_rounded),
-                      ],
-                    ),
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _endDate ?? _startDate,
-                        firstDate: _startDate,
-                        lastDate: DateTime(2035),
-                      );
-                      if (picked != null) {
-                        setState(() => _endDate = picked);
-                      }
-                    },
                   ),
                   Text(
                     'Use end date when a series stops (e.g. old rent before a price change).',
@@ -394,6 +487,7 @@ class _AddProjectedDialogState extends ConsumerState<AddProjectedDialog> {
         notes: widget.existing!.notes,
         sortOrder: widget.existing!.sortOrder,
         createdAt: widget.existing!.createdAt,
+        costNature: _costNature,
       );
 
       await notifier.updateTransaction(updated);
@@ -412,11 +506,48 @@ class _AddProjectedDialogState extends ConsumerState<AddProjectedDialog> {
             : null,
         recurrenceEnd: _endDate,
         createdAt: DateTime.now(),
+        costNature: _costNature,
       );
 
       await notifier.add(newTx);
     }
 
     if (mounted) Navigator.pop(context);
+  }
+}
+
+class _CostNatureChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _CostNatureChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    return Material(
+      color: selected
+          ? colors.primary.withValues(alpha: 0.15)
+          : Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: selected ? colors.primary : colors.textSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

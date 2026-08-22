@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../domain/entities/account.dart';
+import '../../domain/entities/actual_template.dart';
 import '../../domain/entities/actual_transaction.dart';
 import '../../domain/entities/projected_transaction.dart';
 import '../providers/app_providers.dart';
@@ -33,6 +34,7 @@ class _AddActualTransactionDialogState
   String? _fromAccountId;
   String? _toAccountId;
   String? _editPairId;
+  String? _appliedTemplateId;
 
   bool get isEditing => widget.existing != null;
   bool get isTransfer => _type == TransactionType.transfer;
@@ -100,6 +102,91 @@ class _AddActualTransactionDialogState
     });
   }
 
+  void _applyTemplate(ActualTemplate t) {
+    setState(() {
+      _appliedTemplateId = t.id;
+      _type = t.type;
+      _nameController.text = t.description;
+      _amountController.text = t.amount.toStringAsFixed(2);
+      _selectedAccountId = t.accountId;
+      _selectedCategoryId = t.categoryId;
+      _fromAccountId = null;
+      _toAccountId = null;
+    });
+  }
+
+  Future<void> _saveAsTemplate() async {
+    if (isTransfer) return;
+    if (_selectedAccountId == null || _selectedCategoryId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Set account and category first')),
+      );
+      return;
+    }
+    final amount = double.tryParse(_amountController.text);
+    if (amount == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Enter a valid amount')));
+      return;
+    }
+    final desc = _nameController.text.trim();
+    if (desc.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a description first')),
+      );
+      return;
+    }
+
+    final labelController = TextEditingController(text: desc);
+    final label = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Save as template'),
+          content: TextField(
+            controller: labelController,
+            decoration: const InputDecoration(labelText: 'Template name'),
+            autofocus: true,
+            onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, labelController.text.trim()),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+    if (label == null || label.isEmpty) return;
+
+    try {
+      await ref
+          .read(actualTemplatesProvider.notifier)
+          .add(
+            name: label,
+            description: desc,
+            amount: amount,
+            type: _type,
+            categoryId: _selectedCategoryId!,
+            accountId: _selectedAccountId!,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Template "$label" saved')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -117,11 +204,20 @@ class _AddActualTransactionDialogState
     return 'Account';
   }
 
+  bool _isUntrackedId(List<Account> accounts, String? id) {
+    if (id == null) return false;
+    for (final a in accounts) {
+      if (a.id == id) return a.isUntracked;
+    }
+    return id == Account.untrackedId;
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
     final accountsAsync = ref.watch(accountsProvider);
     final categoriesAsync = ref.watch(categoriesProvider);
+    final templatesAsync = ref.watch(actualTemplatesProvider);
     final isIncome = _type == TransactionType.income;
 
     final labelStyle = TextStyle(
@@ -155,8 +251,73 @@ class _AddActualTransactionDialogState
                   ),
                   const SizedBox(height: 24),
 
+                  // Templates (add only, income/expense)
+                  if (!isEditing && !isTransfer)
+                    templatesAsync.when(
+                      data: (templates) {
+                        final usable = templates
+                            .whereType<ActualTemplate>()
+                            .where(
+                              (t) =>
+                                  t.type == TransactionType.expense ||
+                                  t.type == TransactionType.income,
+                            )
+                            .toList();
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            DropdownButtonFormField<String?>(
+                              key: ValueKey(_appliedTemplateId ?? 'none'),
+                              initialValue: _appliedTemplateId,
+                              decoration: _inputDecoration('Template', colors),
+                              items: [
+                                const DropdownMenuItem<String?>(
+                                  value: null,
+                                  child: Text('None'),
+                                ),
+                                for (final t in usable)
+                                  DropdownMenuItem(
+                                    value: t.id,
+                                    child: Text(
+                                      '${t.name} · ${t.amount.toStringAsFixed(2)}',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                              ],
+                              onChanged: (id) {
+                                if (id == null) {
+                                  setState(() => _appliedTemplateId = null);
+                                  return;
+                                }
+                                for (final t in usable) {
+                                  if (t.id == id) {
+                                    _applyTemplate(t);
+                                    return;
+                                  }
+                                }
+                              },
+                            ),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: _saveAsTemplate,
+                                icon: const Icon(
+                                  Icons.bookmark_add_outlined,
+                                  size: 18,
+                                ),
+                                label: const Text('Save as template'),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                        );
+                      },
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, __) => const SizedBox.shrink(),
+                    ),
+
                   DropdownButtonFormField<TransactionType>(
-                    initialValue: _type,
+                    value: _type,
                     decoration: _inputDecoration('Type', colors),
                     items: [
                       if (!isTransfer || !isEditing) ...[
@@ -181,10 +342,16 @@ class _AddActualTransactionDialogState
                             if (value != null) {
                               setState(() {
                                 _type = value;
+                                _appliedTemplateId = null;
                                 _selectedCategoryId = null;
                                 if (value != TransactionType.transfer) {
-                                  if (_selectedAccountId ==
-                                      Account.untrackedId) {
+                                  final accounts =
+                                      ref.read(accountsProvider).valueOrNull ??
+                                      <Account>[];
+                                  if (_isUntrackedId(
+                                    accounts,
+                                    _selectedAccountId,
+                                  )) {
                                     _selectedAccountId = null;
                                   }
                                   _fromAccountId = null;
@@ -223,7 +390,7 @@ class _AddActualTransactionDialogState
                       data: (accounts) => _accountRow(
                         colors: colors,
                         accounts: accounts
-                            .where((a) => !a.isUntracked)
+                            .where((a) => !a.isUntracked && a.isActive)
                             .toList(),
                         value: _selectedAccountId,
                         onChanged: (v) =>
@@ -249,7 +416,7 @@ class _AddActualTransactionDialogState
                           children: [
                             Expanded(
                               child: DropdownButtonFormField<String>(
-                                initialValue: _selectedCategoryId,
+                                value: _selectedCategoryId,
                                 decoration: _inputDecoration(
                                   'Category',
                                   colors,
@@ -297,6 +464,9 @@ class _AddActualTransactionDialogState
                   ] else ...[
                     accountsAsync.when(
                       data: (accounts) {
+                        final active = accounts
+                            .where((a) => a.isActive)
+                            .toList();
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -304,7 +474,7 @@ class _AddActualTransactionDialogState
                             const SizedBox(height: _labelGap),
                             _accountRow(
                               colors: colors,
-                              accounts: accounts,
+                              accounts: active,
                               value: _fromAccountId,
                               onChanged: (v) =>
                                   setState(() => _fromAccountId = v),
@@ -314,10 +484,6 @@ class _AddActualTransactionDialogState
                                 if (v == null) return 'Select account';
                                 if (v == _toAccountId) {
                                   return 'Must differ from To';
-                                }
-                                if (v == Account.untrackedId &&
-                                    _toAccountId == Account.untrackedId) {
-                                  return 'Need a tracked account';
                                 }
                                 return null;
                               },
@@ -367,7 +533,7 @@ class _AddActualTransactionDialogState
                             const SizedBox(height: _labelGap),
                             _accountRow(
                               colors: colors,
-                              accounts: accounts,
+                              accounts: active,
                               value: _toAccountId,
                               onChanged: (v) =>
                                   setState(() => _toAccountId = v),
@@ -377,10 +543,6 @@ class _AddActualTransactionDialogState
                                 if (v == null) return 'Select account';
                                 if (v == _fromAccountId) {
                                   return 'Must differ from From';
-                                }
-                                if (v == Account.untrackedId &&
-                                    _fromAccountId == Account.untrackedId) {
-                                  return 'Need a tracked account';
                                 }
                                 return null;
                               },
@@ -463,6 +625,10 @@ class _AddActualTransactionDialogState
     required ValueChanged<String> onCreated,
     required String? Function(String?) validator,
   }) {
+    final validValue = value != null && accounts.any((a) => a.id == value)
+        ? value
+        : null;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -476,7 +642,7 @@ class _AddActualTransactionDialogState
                   ),
                 )
               : DropdownButtonFormField<String>(
-                  initialValue: value,
+                  value: validValue,
                   decoration: _inputDecoration('Account', colors),
                   items: accounts
                       .map(
@@ -530,26 +696,12 @@ class _AddActualTransactionDialogState
     if (!_formKey.currentState!.validate()) return;
 
     final notifier = ref.read(actualTransactionsProvider.notifier);
+    final accounts = ref.read(accountsProvider).valueOrNull ?? <Account>[];
 
     if (isTransfer) {
       if (_fromAccountId == null || _toAccountId == null) return;
       if (_fromAccountId == _toAccountId) return;
 
-      final fromUntracked = _fromAccountId == Account.untrackedId;
-      final toUntracked = _toAccountId == Account.untrackedId;
-      if (fromUntracked && toUntracked) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Choose at least one account you track in this budget',
-            ),
-          ),
-        );
-        return;
-      }
-
-      final accounts = ref.read(accountsProvider).valueOrNull ?? [];
       final amount = double.parse(_amountController.text);
 
       if (_editPairId != null) {

@@ -21,6 +21,7 @@ import 'presentation/screens/help_screen.dart';
 import 'presentation/screens/projected_list_screen.dart';
 import 'presentation/screens/projection_screen.dart';
 import 'presentation/screens/settings_screen.dart';
+import 'presentation/screens/tools_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -195,6 +196,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     }
     if (index == 80) return 'Analytics';
     if (index == 90) return 'Categories';
+    if (index == 70) return 'Tools';
     if (index == 99) return 'Settings';
 
     return 'Budget';
@@ -244,6 +246,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
     if (index == 80) return const AnalyticsScreen();
     if (index == 90) return const CategoriesScreen();
+    if (index == 70) return const ToolsScreen();
     if (index == 99) return const SettingsScreen();
 
     return const Center(child: Text('Coming soon'));

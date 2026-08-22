@@ -52,8 +52,7 @@ class SettingsRepository {
       startingBalance: (map['starting_balance'] as num?)?.toDouble() ?? 0.0,
       safetyBuffer: (map['safety_buffer'] as num?)?.toDouble() ?? 0.0,
       currencySymbol: map['currency_symbol'] as String? ?? '\$',
-      defaultProjectionMonths:
-          map['default_projection_months'] as int? ?? 3,
+      defaultProjectionMonths: map['default_projection_months'] as int? ?? 3,
       themeMode: ThemeModeSetting.values.firstWhere(
         (e) => e.name == map['theme_mode'],
         orElse: () => ThemeModeSetting.dark,
@@ -74,17 +73,16 @@ class SettingsRepository {
       ),
       customLookbackStart: _parseDate(map['custom_lookback_start']),
       customHorizonEnd: _parseDate(map['custom_horizon_end']),
-      rememberProjectionRange:
-          (map['remember_projection_range'] as int?) != 0,
+      rememberProjectionRange: (map['remember_projection_range'] as int?) != 0,
       projectionPaidFilter: ProjectionPaidFilter.values.firstWhere(
-        (e) =>
-            e.name == (map['projection_paid_filter'] as String? ?? 'all'),
+        (e) => e.name == (map['projection_paid_filter'] as String? ?? 'all'),
         orElse: () => ProjectionPaidFilter.all,
       ),
       colorScheme: AppColorScheme.values.firstWhere(
         (e) => e.name == (map['color_scheme'] as String? ?? 'defaultBlue'),
         orElse: () => AppColorScheme.defaultBlue,
       ),
+      showCostNature: (map['show_cost_nature'] as int?) != 0,
     );
   }
 
@@ -116,10 +114,10 @@ class SettingsRepository {
         'horizon_mode': effective.horizonMode.name,
         'custom_lookback_start': _dateToDb(effective.customLookbackStart),
         'custom_horizon_end': _dateToDb(effective.customHorizonEnd),
-        'remember_projection_range':
-            effective.rememberProjectionRange ? 1 : 0,
+        'remember_projection_range': effective.rememberProjectionRange ? 1 : 0,
         'projection_paid_filter': effective.projectionPaidFilter.name,
         'color_scheme': effective.colorScheme.name,
+        'show_cost_nature': effective.showCostNature ? 1 : 0,
       },
       where: 'id = ?',
       whereArgs: [1],

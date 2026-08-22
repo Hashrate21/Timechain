@@ -24,19 +24,19 @@ class Sidebar extends ConsumerWidget {
 
     final items = <_NavItemData>[];
 
-    // ===== DASHBOARD(S) =====
+    // ===== DASHBOARD =====
     if (appMode == AppMode.combined) {
       items.add(_NavItemData(Icons.dashboard_rounded, 'Dashboards', 0));
     } else {
       items.add(_NavItemData(Icons.dashboard_rounded, 'Dashboard', 0));
     }
 
-    // ===== PROJECTION SIDE =====
+    // ===== PROJECTION SIDE (Projection first, then series lists) =====
     if (appMode == AppMode.projection || appMode == AppMode.combined) {
       items.addAll([
+        _NavItemData(Icons.timeline_rounded, 'Projection', 3),
         _NavItemData(Icons.arrow_upward_rounded, 'Incomes', 1),
         _NavItemData(Icons.arrow_downward_rounded, 'Expenses', 2),
-        _NavItemData(Icons.timeline_rounded, 'Projection', 3),
       ]);
     }
 
@@ -51,8 +51,10 @@ class Sidebar extends ConsumerWidget {
     }
 
     // ===== ALWAYS VISIBLE =====
+    // Analytics before Categories so Categories doesn't look like part of Actuals
     items.add(_NavItemData(Icons.insights_rounded, 'Analytics', 80));
     items.add(_NavItemData(Icons.category_rounded, 'Categories', 90));
+    items.add(_NavItemData(Icons.build_rounded, 'Tools', 70));
     items.add(_NavItemData(Icons.settings_rounded, 'Settings', 99));
 
     return Container(
@@ -119,19 +121,23 @@ class Sidebar extends ConsumerWidget {
 
           const SizedBox(height: 8),
 
-          // Navigation items
-          ...items.map((item) {
-            return _NavItem(
-              icon: item.icon,
-              label: item.label,
-              isSelected: selectedIndex == item.index,
-              onTap: () => onItemSelected(item.index),
-            );
-          }),
+          // Scrollable nav — prevents bottom overflow on short windows
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                for (final item in items)
+                  _NavItem(
+                    icon: item.icon,
+                    label: item.label,
+                    isSelected: selectedIndex == item.index,
+                    onTap: () => onItemSelected(item.index),
+                  ),
+              ],
+            ),
+          ),
 
-          const Spacer(),
-
-          // Help footer (not part of nav indices)
+          // Help footer (pinned, not part of nav indices)
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
             child: Material(

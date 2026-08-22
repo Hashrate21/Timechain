@@ -41,6 +41,9 @@ class AppSettings extends Equatable {
 
   final AppColorScheme colorScheme;
 
+  /// When true: show Fixed/Variable badges on lists and mix bars on Projection dashboard.
+  final bool showCostNature;
+
   const AppSettings({
     this.appMode = AppMode.combined,
     this.useProjectionAsDefaultTarget = true,
@@ -59,6 +62,7 @@ class AppSettings extends Equatable {
     this.rememberProjectionRange = true,
     this.projectionPaidFilter = ProjectionPaidFilter.all,
     this.colorScheme = AppColorScheme.defaultBlue,
+    this.showCostNature = true,
   });
 
   AppSettings copyWith({
@@ -79,6 +83,7 @@ class AppSettings extends Equatable {
     bool? rememberProjectionRange,
     ProjectionPaidFilter? projectionPaidFilter,
     AppColorScheme? colorScheme,
+    bool? showCostNature,
     bool clearCustomLookbackStart = false,
     bool clearCustomHorizonEnd = false,
   }) {
@@ -107,6 +112,7 @@ class AppSettings extends Equatable {
           rememberProjectionRange ?? this.rememberProjectionRange,
       projectionPaidFilter: projectionPaidFilter ?? this.projectionPaidFilter,
       colorScheme: colorScheme ?? this.colorScheme,
+      showCostNature: showCostNature ?? this.showCostNature,
     );
   }
 
@@ -129,5 +135,6 @@ class AppSettings extends Equatable {
     rememberProjectionRange,
     projectionPaidFilter,
     colorScheme,
+    showCostNature,
   ];
 }

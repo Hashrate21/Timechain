@@ -31,7 +31,7 @@ class DatabaseHelper {
 
     return openDatabase(
       _currentPath!,
-      version: 12,
+      version: 16,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -172,6 +172,50 @@ class DatabaseHelper {
     if (oldVersion < 12) {
       await _ensureUntrackedAccount(db);
     }
+    if (oldVersion < 13) {
+      await db.execute('''
+    CREATE TABLE IF NOT EXISTS actual_templates (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      amount REAL NOT NULL,
+      type TEXT NOT NULL,
+      category_id TEXT NOT NULL,
+      account_id TEXT NOT NULL,
+      notes TEXT,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (category_id) REFERENCES categories (id),
+      FOREIGN KEY (account_id) REFERENCES accounts (id)
+    )
+  ''');
+    }
+    if (oldVersion < 14) {
+      try {
+        await db.execute(
+          "ALTER TABLE projected_transactions "
+          "ADD COLUMN cost_nature TEXT NOT NULL DEFAULT 'variable'",
+        );
+      } catch (_) {}
+    }
+    if (oldVersion < 15) {
+      try {
+        await db.execute(
+          "ALTER TABLE settings ADD COLUMN show_cost_nature INTEGER NOT NULL DEFAULT 1",
+        );
+      } catch (_) {}
+    }
+    if (oldVersion < 16) {
+      await db.execute('''
+    CREATE TABLE IF NOT EXISTS calculator_presets (
+      id TEXT PRIMARY KEY,
+      calculator TEXT NOT NULL,
+      account_id TEXT,
+      payload TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  ''');
+    }
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -231,11 +275,11 @@ class DatabaseHelper {
         notes TEXT,
         sort_order INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
+        cost_nature TEXT NOT NULL DEFAULT 'variable',
         FOREIGN KEY (category_id) REFERENCES categories (id),
         FOREIGN KEY (account_id) REFERENCES accounts (id)
       )
     ''');
-
     await db.execute('''
       CREATE TABLE paid_occurrences (
         id TEXT PRIMARY KEY,
@@ -263,6 +307,22 @@ class DatabaseHelper {
         FOREIGN KEY (category_id) REFERENCES categories (id)
       )
     ''');
+    await db.execute('''
+      CREATE TABLE actual_templates (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        amount REAL NOT NULL,
+        type TEXT NOT NULL,
+        category_id TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        notes TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (category_id) REFERENCES categories (id),
+        FOREIGN KEY (account_id) REFERENCES accounts (id)
+      )
+    ''');
 
     await db.execute('''
       CREATE TABLE settings (
@@ -284,7 +344,8 @@ class DatabaseHelper {
         custom_horizon_end TEXT,
         remember_projection_range INTEGER NOT NULL DEFAULT 1,
         projection_paid_filter TEXT NOT NULL DEFAULT 'all',
-        color_scheme TEXT NOT NULL DEFAULT 'defaultBlue'
+        color_scheme TEXT NOT NULL DEFAULT 'defaultBlue',
+        show_cost_nature INTEGER NOT NULL DEFAULT 1
       )
     ''');
 
@@ -308,6 +369,7 @@ class DatabaseHelper {
       'remember_projection_range': 1,
       'projection_paid_filter': 'all',
       'color_scheme': 'defaultBlue',
+      'show_cost_nature': 1,
     });
 
     await db.execute('''
@@ -315,6 +377,15 @@ class DatabaseHelper {
         occurrence_id TEXT PRIMARY KEY,
         template_id TEXT NOT NULL,
         date TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE calculator_presets (
+        id TEXT PRIMARY KEY,
+        calculator TEXT NOT NULL,
+        account_id TEXT,
+        payload TEXT NOT NULL,
+        updated_at TEXT NOT NULL
       )
     ''');
 

@@ -1,4 +1,5 @@
 import 'package:uuid/uuid.dart';
+
 import '../database/database_helper.dart';
 import '../../domain/entities/projected_transaction.dart';
 
@@ -56,6 +57,7 @@ class ProjectedTransactionRepository {
     int? recurrenceWeekday,
     DateTime? recurrenceEnd,
     String? notes,
+    CostNature costNature = CostNature.variable, // ← add
   }) async {
     final tx = ProjectedTransaction(
       id: _uuid.v4(),
@@ -72,6 +74,7 @@ class ProjectedTransactionRepository {
       recurrenceEnd: recurrenceEnd,
       notes: notes,
       createdAt: DateTime.now(),
+      costNature: costNature, // ← pass through
     );
     await insert(tx);
     return tx;
@@ -82,7 +85,9 @@ class ProjectedTransactionRepository {
       id: map['id'] as String,
       name: map['name'] as String,
       amount: map['amount'] as double,
-      type: map['type'] == 'income' ? TransactionType.income : TransactionType.expense,
+      type: map['type'] == 'income'
+          ? TransactionType.income
+          : TransactionType.expense,
       categoryId: map['category_id'] as String,
       accountId: map['account_id'] as String?,
       startDate: DateTime.parse(map['start_date'] as String),
@@ -100,6 +105,9 @@ class ProjectedTransactionRepository {
       notes: map['notes'] as String?,
       sortOrder: map['sort_order'] as int,
       createdAt: DateTime.parse(map['created_at'] as String),
+      costNature: (map['cost_nature'] as String?) == 'fixed'
+          ? CostNature.fixed
+          : CostNature.variable,
     );
   }
 
@@ -121,6 +129,7 @@ class ProjectedTransactionRepository {
       'notes': tx.notes,
       'sort_order': tx.sortOrder,
       'created_at': tx.createdAt.toIso8601String(),
+      'cost_nature': tx.costNature == CostNature.fixed ? 'fixed' : 'variable',
     };
   }
 }

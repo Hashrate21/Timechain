@@ -213,8 +213,9 @@ class _PasteTransactionsDialogState
           children: [
             Text(
               'Columns: date, account, description, category, type, amount, notes\n'
-              'Transfers: account = "From → To", type = transfer\n'
-              'All rows must be valid or nothing is imported.',
+              'Transfers: account = "From > To", type = transfer\n'
+              'External: use the Untracked name from Settings (e.g. External Account)\n'
+              'All rows must be valid or nothing is imported. See examples in User Guide',
               style: TextStyle(fontSize: 12, color: colors.textSecondary),
             ),
             const SizedBox(height: 12),

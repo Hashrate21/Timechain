@@ -40,6 +40,7 @@ class ProjectedListScreen extends ConsumerStatefulWidget {
 class _ProjectedListScreenState extends ConsumerState<ProjectedListScreen> {
   String _query = '';
   String? _selectedCategoryId;
+  CostNature? _selectedCostNature;
   bool _showEnded = false;
 
   @override
@@ -48,6 +49,17 @@ class _ProjectedListScreenState extends ConsumerState<ProjectedListScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isIncome = widget.type == TransactionType.income;
     final today = DateTime.now();
+
+    final settings =
+        ref.watch(settingsProvider).valueOrNull ?? const AppSettings();
+    final showCostNature = settings.showCostNature;
+
+    // Clear cost-nature filter if the setting was turned off
+    if (!showCostNature && _selectedCostNature != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _selectedCostNature = null);
+      });
+    }
 
     final transactionsAsync = isIncome
         ? ref.watch(projectedIncomesProvider)
@@ -84,10 +96,14 @@ class _ProjectedListScreenState extends ConsumerState<ProjectedListScreen> {
                   ),
                 ),
               ),
-              if (_selectedCategoryId != null) ...[
+              if (_selectedCategoryId != null ||
+                  _selectedCostNature != null) ...[
                 const SizedBox(width: 12),
                 TextButton.icon(
-                  onPressed: () => setState(() => _selectedCategoryId = null),
+                  onPressed: () => setState(() {
+                    _selectedCategoryId = null;
+                    _selectedCostNature = null;
+                  }),
                   icon: const Icon(Icons.filter_alt_off, size: 18),
                   label: const Text('Clear filter'),
                 ),
@@ -158,6 +174,12 @@ class _ProjectedListScreenState extends ConsumerState<ProjectedListScreen> {
                     .toList();
               }
 
+              if (_selectedCostNature != null) {
+                filtered = filtered
+                    .where((t) => t.costNature == _selectedCostNature)
+                    .toList();
+              }
+
               final active = <ProjectedTransaction>[];
               final ended = <ProjectedTransaction>[];
 
@@ -193,7 +215,9 @@ class _ProjectedListScreenState extends ConsumerState<ProjectedListScreen> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        _query.isEmpty && _selectedCategoryId == null
+                        _query.isEmpty &&
+                                _selectedCategoryId == null &&
+                                _selectedCostNature == null
                             ? (ended.isNotEmpty && !_showEnded
                                   ? (isIncome
                                         ? 'No active projected incomes'
@@ -232,12 +256,21 @@ class _ProjectedListScreenState extends ConsumerState<ProjectedListScreen> {
                       isIncome: isIncome,
                       categoryName: categoryNames[tx.categoryId] ?? 'Unknown',
                       selectedCategoryId: _selectedCategoryId,
+                      selectedCostNature: _selectedCostNature,
+                      showCostNature: showCostNature,
                       forceDim: _isDimmedActiveEnded(tx, today),
                       onCategoryTap: (id) {
                         setState(() {
                           _selectedCategoryId = _selectedCategoryId == id
                               ? null
                               : id;
+                        });
+                      },
+                      onCostNatureTap: (nature) {
+                        setState(() {
+                          _selectedCostNature = _selectedCostNature == nature
+                              ? null
+                              : nature;
                         });
                       },
                     );
@@ -265,12 +298,21 @@ class _ProjectedListScreenState extends ConsumerState<ProjectedListScreen> {
                     isIncome: isIncome,
                     categoryName: categoryNames[tx.categoryId] ?? 'Unknown',
                     selectedCategoryId: _selectedCategoryId,
+                    selectedCostNature: _selectedCostNature,
+                    showCostNature: showCostNature,
                     forceDim: true,
                     onCategoryTap: (id) {
                       setState(() {
                         _selectedCategoryId = _selectedCategoryId == id
                             ? null
                             : id;
+                      });
+                    },
+                    onCostNatureTap: (nature) {
+                      setState(() {
+                        _selectedCostNature = _selectedCostNature == nature
+                            ? null
+                            : nature;
                       });
                     },
                   );
@@ -291,7 +333,10 @@ class _ProjectedCard extends ConsumerWidget {
   final bool isIncome;
   final String categoryName;
   final String? selectedCategoryId;
+  final CostNature? selectedCostNature;
+  final bool showCostNature;
   final ValueChanged<String> onCategoryTap;
+  final ValueChanged<CostNature> onCostNatureTap;
   final bool forceDim;
 
   const _ProjectedCard({
@@ -300,7 +345,10 @@ class _ProjectedCard extends ConsumerWidget {
     required this.isIncome,
     required this.categoryName,
     required this.selectedCategoryId,
+    required this.selectedCostNature,
+    required this.showCostNature,
     required this.onCategoryTap,
+    required this.onCostNatureTap,
     this.forceDim = false,
   });
 
@@ -314,8 +362,11 @@ class _ProjectedCard extends ConsumerWidget {
     final filterDim =
         selectedCategoryId != null &&
         selectedCategoryId != transaction.categoryId;
+    final natureDim =
+        selectedCostNature != null &&
+        selectedCostNature != transaction.costNature;
 
-    final opacity = filterDim ? 0.35 : (forceDim ? 0.55 : 1.0);
+    final opacity = (filterDim || natureDim) ? 0.35 : (forceDim ? 0.55 : 1.0);
 
     String recurrenceText = switch (transaction.recurrence) {
       RecurrenceType.none => 'One-time',
@@ -397,6 +448,15 @@ class _ProjectedCard extends ConsumerWidget {
                           ),
                         ),
                       ),
+                      if (showCostNature) ...[
+                        const SizedBox(width: 6),
+                        _ListCostBadge(
+                          nature: transaction.costNature,
+                          selected:
+                              selectedCostNature == transaction.costNature,
+                          onTap: () => onCostNatureTap(transaction.costNature),
+                        ),
+                      ],
                     ],
                   ),
                 ],
@@ -459,6 +519,59 @@ class _ProjectedCard extends ConsumerWidget {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ListCostBadge extends StatelessWidget {
+  final CostNature nature;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  const _ListCostBadge({
+    required this.nature,
+    this.selected = false,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    final isFixed = nature == CostNature.fixed;
+    final bg = isFixed
+        ? colors.primary.withValues(alpha: selected ? 0.35 : 0.18)
+        : colors.warningColor.withValues(alpha: selected ? 0.35 : 0.18);
+    final fg = isFixed ? colors.primary : colors.warningColor;
+
+    return Tooltip(
+      message: selected
+          ? (isFixed
+                ? 'Showing Fixed only · tap to clear'
+                : 'Showing Variable only · tap to clear')
+          : (isFixed ? 'Fixed · tap to filter' : 'Variable · tap to filter'),
+      waitDuration: const Duration(milliseconds: 500),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 20,
+          height: 20,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: bg,
+            shape: BoxShape.circle,
+            border: selected ? Border.all(color: fg, width: 1.5) : null,
+          ),
+          child: Text(
+            isFixed ? 'F' : 'V',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: fg,
+            ),
+          ),
         ),
       ),
     );
